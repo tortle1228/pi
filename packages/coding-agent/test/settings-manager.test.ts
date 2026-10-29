@@ -434,6 +434,33 @@ describe("SettingsManager", () => {
 		});
 	});
 
+	describe("modelServiceTiers", () => {
+		it("saves fast mode per model and removes the map when the last model turns it off", async () => {
+			const manager = SettingsManager.create(projectDir, agentDir);
+			manager.setModelFastMode("openai-codex", "gpt-5.6-sol", true);
+			await manager.flush();
+
+			const reloaded = SettingsManager.create(projectDir, agentDir);
+			expect(reloaded.isModelFastMode("openai-codex", "gpt-5.6-sol")).toBe(true);
+			expect(reloaded.isModelFastMode("openai-codex", "gpt-5.6-luna")).toBe(false);
+			expect(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8"))).toEqual({
+				modelServiceTiers: { "openai-codex/gpt-5.6-sol": "priority" },
+			});
+
+			reloaded.setModelFastMode("openai-codex", "gpt-5.6-sol", false);
+			await reloaded.flush();
+			expect(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8"))).toEqual({});
+		});
+
+		it("ignores project settings", () => {
+			writeFileSync(
+				join(projectDir, ".pi", "settings.json"),
+				JSON.stringify({ modelServiceTiers: { "openai/gpt-5.6-sol": "priority" } }),
+			);
+			expect(SettingsManager.create(projectDir, agentDir).isModelFastMode("openai", "gpt-5.6-sol")).toBe(false);
+		});
+	});
+
 	describe("externalEditor", () => {
 		const originalVisual = process.env.VISUAL;
 		const originalEditor = process.env.EDITOR;

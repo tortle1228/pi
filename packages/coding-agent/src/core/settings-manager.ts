@@ -809,6 +809,27 @@ export class SettingsManager {
 		this.save();
 	}
 
+	/** Whether fast mode (the priority service tier) is on for this model. Global setting only. */
+	isModelFastMode(provider: string, modelId: string): boolean {
+		return this.globalSettings.modelServiceTiers?.[`${provider}/${modelId}`] === "priority";
+	}
+
+	/** Turn fast mode on or off for this model in global settings. */
+	setModelFastMode(provider: string, modelId: string, enabled: boolean): void {
+		const key = `${provider}/${modelId}`;
+		if (enabled) {
+			this.globalSettings.modelServiceTiers = { ...this.globalSettings.modelServiceTiers, [key]: "priority" };
+		} else {
+			if (!this.globalSettings.modelServiceTiers?.[key]) return;
+			delete this.globalSettings.modelServiceTiers[key];
+			if (Object.keys(this.globalSettings.modelServiceTiers).length === 0) {
+				delete this.globalSettings.modelServiceTiers;
+			}
+		}
+		this.markModified("modelServiceTiers");
+		this.save();
+	}
+
 	getTransport(): TransportSetting {
 		return this.settings.transport ?? SETTINGS_DEFAULTS.transport;
 	}

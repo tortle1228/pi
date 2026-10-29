@@ -115,6 +115,7 @@ import {
 	wrapRegisteredTools,
 } from "./extensions/index.ts";
 import { type BeforeAgentStartTrigger, emitSessionShutdownEvent } from "./extensions/runner.ts";
+import { getFastModeServiceTier, modelSupportsFastMode } from "./fast-mode.ts";
 import { createToolNameMatcher, isMcpToolName } from "./mcp-servers.ts";
 import { type BashExecutionMessage, type CustomMessage, convertToLlm } from "./messages.ts";
 import { ModelRegistry } from "./model-registry.ts";
@@ -2794,6 +2795,25 @@ export class AgentSession {
 	 */
 	supportsThinking(): boolean {
 		return !!this.model?.reasoning;
+	}
+
+	/** Whether the current model supports fast mode (the priority service tier). */
+	supportsFastMode(): boolean {
+		return !!this.model && modelSupportsFastMode(this.model);
+	}
+
+	/** Whether fast mode is on for the current model. */
+	isFastModeActive(): boolean {
+		return !!this.model && getFastModeServiceTier(this.model, this.settingsManager) !== undefined;
+	}
+
+	/** Turn fast mode on or off for the current model. The choice is saved per model in global settings. */
+	setFastMode(enabled: boolean): void {
+		const model = this.model;
+		if (!model || !modelSupportsFastMode(model)) {
+			throw new Error("Fast mode is only available for OpenAI and OpenAI Codex models.");
+		}
+		this.settingsManager.setModelFastMode(model.provider, model.id, enabled);
 	}
 
 	private _getThinkingLevelForModelSwitch(targetModel?: Model<any>, explicitLevel?: ThinkingLevel): ThinkingLevel {

@@ -38,6 +38,16 @@
       },
       "description": "Per-model default thinking level overrides keyed by \"provider/modelId\"."
     },
+    "modelServiceTiers": {
+      "type": "object",
+      "patternProperties": {
+        "^.*$": {
+          "type": "string",
+          "const": "priority"
+        }
+      },
+      "description": "Per-model service tiers keyed by \"provider/modelId\". \"priority\" turns on fast mode; managed by /fast."
+    },
     "transport": {
       "anyOf": [
         {
@@ -611,6 +621,26 @@
       "properties": {
         "anthropicExtraUsage": {
           "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "properties": {
+        "piDocs": {
+          "type": "boolean",
+          "description": "Include the Pi documentation section in the default system prompt. Turn it off to keep Pi's own docs pointers out of the prompt and provide them through a skill instead.",
+          "default": true
+        },
+        "environmentContext": {
+          "type": "boolean",
+          "description": "Send cwd and date as an environment-context message instead of inside system prompt (byte-stable prompt caching).",
+          "default": true
+        },
+        "dynamicDiscipline": {
+          "type": "boolean",
+          "description": "Include dynamic discipline sections (intent gate, working task, verification, handoff) in the system prompt.",
           "default": true
         }
       }

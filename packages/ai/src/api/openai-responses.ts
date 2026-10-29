@@ -281,6 +281,7 @@ export const streamSimple: StreamFunction<"openai-responses", SimpleStreamOption
 	const base = {
 		...buildBaseOptions(model, context, options, options?.apiKey),
 		toolChoice: options?.toolChoice,
+		serviceTier: options?.serviceTier,
 	} satisfies OpenAIResponsesOptions;
 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
 	const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;

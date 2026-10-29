@@ -26,6 +26,7 @@ function createSession(options: {
 	toolUsage?: AssistantUsage;
 	usingSubscription?: boolean;
 	routedModel?: { model: { id: string }; thinkingLevel?: string };
+	fastMode?: boolean;
 }): AgentSession {
 	const usage = options.usage;
 	const entries: Array<Record<string, unknown>> = [];
@@ -84,6 +85,7 @@ function createSession(options: {
 		},
 		getContextUsage: () => ({ contextWindow: 200_000, percent: 12.3 }),
 		routedModel: options.routedModel,
+		isFastModeActive: () => options.fastMode ?? false,
 		modelRuntime: {
 			isUsingSubscription: () => options.usingSubscription ?? false,
 		},
@@ -170,6 +172,19 @@ describe("FooterComponent width handling", () => {
 		const statsLine = stripAnsi(footer.render(120)[1]);
 
 		expect(statsLine).toContain("auto \u2022 high \u2192 gpt-5.6-luna \u2022 medium");
+	});
+
+	it("marks the model when fast mode is on", () => {
+		const session = createSession({
+			sessionName: "",
+			modelId: "gpt-5.6-sol",
+			reasoning: true,
+			thinkingLevel: "high",
+			fastMode: true,
+		});
+		const footer = new FooterComponent(session, createFooterData(1));
+
+		expect(stripAnsi(footer.render(120)[1])).toContain("gpt-5.6-sol \u2022 high \u2022 fast");
 	});
 
 	it("includes summary and tool result usage in the total cost", () => {

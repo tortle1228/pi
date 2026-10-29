@@ -781,6 +781,17 @@ export class InteractiveMode {
 			};
 		}
 
+		const fastCommand = slashCommands.find((command) => command.name === "fast");
+		if (fastCommand) {
+			fastCommand.getArgumentCompletions = (prefix: string): AutocompleteItem[] | null =>
+				createFuzzyAutocompleteItems(
+					["on", "off"],
+					prefix,
+					(value) => value,
+					(value) => ({ value, label: value }),
+				);
+		}
+
 		const loginCommand = slashCommands.find((command) => command.name === "login");
 		if (loginCommand) {
 			loginCommand.getArgumentCompletions = (prefix: string): AutocompleteItem[] | null => {
@@ -3293,6 +3304,12 @@ export class InteractiveMode {
 				this.handleThinkingCommand(searchTerm);
 				return;
 			}
+			if (text === "/fast" || text.startsWith("/fast ")) {
+				const argument = text.startsWith("/fast ") ? text.slice(6).trim() : undefined;
+				this.editor.setText("");
+				this.handleFastCommand(argument);
+				return;
+			}
 			if (text === "/export" || text.startsWith("/export ")) {
 				await this.handleExportCommand(text);
 				this.editor.setText("");
@@ -5265,6 +5282,22 @@ export class InteractiveMode {
 		}
 
 		this.selectThinkingLevel(level, false);
+	}
+
+	private handleFastCommand(argument?: string): void {
+		const normalized = argument?.toLowerCase();
+		if (normalized && normalized !== "on" && normalized !== "off") {
+			this.showError(`Unknown argument "${argument}". Usage: /fast [on|off]`);
+			return;
+		}
+		const enabled = normalized ? normalized === "on" : !this.session.isFastModeActive();
+		try {
+			this.session.setFastMode(enabled);
+			this.footer.invalidate();
+			this.showStatus(`Fast mode ${enabled ? "on" : "off"}: ${this.session.model?.id}`);
+		} catch (error) {
+			this.showError(error instanceof Error ? error.message : String(error));
+		}
 	}
 
 	private selectThinkingLevel(level: ThinkingLevel, persist: boolean): void {

@@ -237,6 +237,9 @@ export class FooterComponent implements Component {
 			rightSideWithoutProvider =
 				thinkingLevel === "off" ? `${modelName} • thinking off` : `${modelName} • ${thinkingLevel}`;
 		}
+		if (this.session.isFastModeActive()) {
+			rightSideWithoutProvider += " • fast";
+		}
 		// A virtual model routes each request; show where the latest response went.
 		const routed = this.session.routedModel;
 		if (routed) {

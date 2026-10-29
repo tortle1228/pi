@@ -11,6 +11,7 @@ Extensions, prompt templates, and skills can add commands. The command menu in P
 | `/settings` | Open settings |
 | `/model [provider/model]` | Select a model |
 | `/thinking [level]` | Set the thinking level |
+| `/fast [on\|off]` | Toggle fast mode (priority tier) for the current OpenAI or OpenAI Codex model |
 | `/scoped-models` | Configure the models used by interactive cycling |
 | `/login [provider]` | Add provider authentication |
 | `/logout` | Remove provider authentication |

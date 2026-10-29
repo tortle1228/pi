@@ -30,6 +30,8 @@ Run `/model` to search available models. The picker shows models whose providers
 
 Run `/thinking` to select the thinking level for the current model. Press `Ctrl+S` there to save the startup level. Pi limits the choices to levels supported by the selected model.
 
+Run `/fast` to toggle fast mode for the current model, or `/fast on` and `/fast off` to set it. Fast mode asks OpenAI to serve requests at the `priority` service tier: responses arrive faster, and OpenAI bills them at a higher rate (2x for most models, 2.5x for GPT-5.5), which session costs reflect. It is available for models from the `openai` (API key) and `openai-codex` (ChatGPT subscription) providers; other providers that use the same API, such as GitHub Copilot, never receive the tier. Pi remembers the choice per model in global settings (`modelServiceTiers`), and the footer shows `fast` next to the model while it is on.
+
 `Ctrl+P` cycles through available models. Use `/scoped-models` to control that cycle and save the selection, or configure model patterns through [Settings](settings.md#model-cycling).
 
 A session records model and thinking-level changes. Resuming the session restores them without changing defaults for new sessions.

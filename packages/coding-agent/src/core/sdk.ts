@@ -10,6 +10,7 @@ import { CacheWarmer } from "./cache-warmer.ts";
 import { getClientIdentity } from "./client-identity.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import type { ExtensionRunner, LoadExtensionsResult, SessionStartEvent, ToolDefinition } from "./extensions/index.ts";
+import { getFastModeServiceTier } from "./fast-mode.ts";
 import { createToolNameMatcher } from "./mcp-servers.ts";
 import { convertToLlm } from "./messages.ts";
 import { findInitialModel } from "./model-resolver.ts";
@@ -337,7 +338,10 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		() => settingsManager.getCacheWarmingMode(),
 		async (event) => extensionRunnerRef.current?.emitCacheWarmingDecision(event) ?? event.action,
 	);
-	const buildRequestOptions = (options: ModelsSimpleStreamOptions = {}): ModelsSimpleStreamOptions => {
+	const buildRequestOptions = (
+		model: Model<any>,
+		options: ModelsSimpleStreamOptions = {},
+	): ModelsSimpleStreamOptions => {
 		const providerRetrySettings = settingsManager.getProviderRetrySettings();
 		const httpIdleTimeoutMs = settingsManager.getHttpIdleTimeoutMs();
 		const effectiveTimeoutMs = httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs;
@@ -348,6 +352,8 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			websocketConnectTimeoutMs: options.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs(),
 			maxRetries: options.maxRetries ?? providerRetrySettings.maxRetries,
 			maxRetryDelayMs: options.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
+			// Read per request so /fast applies to the next request without rebuilding the agent.
+			serviceTier: options.serviceTier ?? getFastModeServiceTier(model, settingsManager),
 			// Replaces the agent loop's default identity; read per request so telemetry changes apply at once.
 			identity: getClientIdentity(settingsManager),
 			transformHeaders: async (headers) =>
@@ -410,7 +416,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		},
 		convertToLlm: convertToLlmWithBlockImages,
 		streamFn: async (model, context, options) => {
-			const requestOptions = buildRequestOptions(options);
+			const requestOptions = buildRequestOptions(model, options);
 			// Compaction and summaries use their own routing ids; only session requests
 			// replace the cache entry, so warming restarts from them. Keep warming while
 			// the current transcript still extends the request's prefix. Agent state may

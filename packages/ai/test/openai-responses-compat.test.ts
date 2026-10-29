@@ -1,6 +1,9 @@
 import { Type } from "typebox";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { stream as streamOpenAIResponses } from "../src/api/openai-responses.ts";
+import {
+	stream as streamOpenAIResponses,
+	streamSimple as streamSimpleOpenAIResponses,
+} from "../src/api/openai-responses.ts";
 import { getModel, normalizeContext } from "../src/compat.ts";
 import type { Model } from "../src/types.ts";
 
@@ -154,6 +157,33 @@ describe("openai-responses provider defaults", () => {
 			tool_choice: "required",
 			input: [{ type: "additional_tools", tools: [expect.objectContaining({ name: "ping" })] }, expect.anything()],
 		});
+	});
+
+	it("forwards serviceTier from simple options", async () => {
+		let capturedPayload: unknown;
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response("data: [DONE]\n\n", {
+				status: 200,
+				headers: { "content-type": "text/event-stream" },
+			}),
+		);
+
+		const stream = streamSimpleOpenAIResponses(
+			getModel("openai", "gpt-5.4"),
+			normalizeContext({ messages: [{ role: "user", content: "hi", timestamp: Date.now() }] }),
+			{
+				apiKey: "sk-test-key",
+				serviceTier: "priority",
+				onPayload: (payload) => {
+					capturedPayload = payload;
+				},
+			},
+		);
+		for await (const event of stream) {
+			if (event.type === "done" || event.type === "error") break;
+		}
+
+		expect(capturedPayload).toMatchObject({ service_tier: "priority" });
 	});
 
 	it("sets strict mode explicitly for Cloudflare OpenAI Responses tools", async () => {

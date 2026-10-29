@@ -375,8 +375,16 @@ export interface ImagesOptions extends ProviderRequestOptions<ImageModel<ImageAp
 
 export type ProviderImagesOptions = ImagesOptions & Record<string, unknown>;
 
+/** Processing tier a request asks for. `"priority"` trades a higher price for faster responses. */
+export type ServiceTier = "auto" | "default" | "flex" | "priority";
+
 // Unified options with reasoning passed to streamSimple() and completeSimple()
 export interface SimpleStreamOptions extends StreamOptions {
+	/**
+	 * Requested processing tier. The OpenAI Responses and Codex Responses adapters send it as
+	 * `service_tier` and price usage for it; other adapters ignore it.
+	 */
+	serviceTier?: ServiceTier;
 	/** Provider-neutral tool selection for simple requests. When omitted, adapters use provider-specific behavior. */
 	toolChoice?: ToolChoice;
 	reasoning?: ThinkingLevel;

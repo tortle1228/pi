@@ -11,6 +11,7 @@
 - Added Antigravity to `/login` for Google subscriptions. It serves Gemini, Claude, and GPT-OSS models through Cloud Code Assist and only lists models the account can use. The provider ID is `google-antigravity`, and its default model is `gemini-3.8-flash-high`
 - Added `prompt.environmentContext`. The working directory and local date now reach the model as a hidden message folded into the next user message instead of the system prompt, so sessions started from different subdirectories share one cached system prompt. Set it to `false` to restore the `<cwd>` section. See [docs/settings.md](docs/settings.md)
 - Added `prompt.dynamicDiscipline`. The default system prompt now includes intent gate, working task, verification, and handoff sections; set it to `false` to omit them. See [docs/settings.md](docs/settings.md)
+- Added `/fast [on|off]` to toggle fast mode for the current OpenAI or OpenAI Codex model. Fast mode sends `service_tier: "priority"` for faster responses at OpenAI's higher priority rate, is remembered per model in the global `modelServiceTiers` setting, and shows `fast` in the footer. See [docs/models.md](docs/models.md)
 
 ### Changed
 

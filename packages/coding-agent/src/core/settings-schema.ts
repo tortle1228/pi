@@ -244,6 +244,12 @@ export const SettingsSchema = Type.Object(
 				description: 'Per-model default thinking level overrides keyed by "provider/modelId".',
 			}),
 		),
+		modelServiceTiers: Type.Optional(
+			Type.Record(Type.String(), Type.Literal("priority"), {
+				description:
+					'Per-model service tiers keyed by "provider/modelId". "priority" turns on fast mode; managed by /fast.',
+			}),
+		),
 		transport: Type.Optional(
 			Type.Union(
 				[Type.Literal("auto"), Type.Literal("sse"), Type.Literal("websocket"), Type.Literal("websocket-cached")],

@@ -12,6 +12,7 @@
 - Added `StreamingJsonParser`, an incremental, tolerant parser for JSON text that arrives in pieces (each piece is read once; snapshots of the partial value never change once returned), and `ToolCallArgumentsStream`, which every provider now uses for streamed tool-call arguments; its `append()` also returns the changes each piece made (`JsonChange`: a value set at a path, or text appended to a string), for writers that keep their own copy ([#9265](https://github.com/earendil-works/pi/issues/9265))
 - Added GPT-6.1 Terra to the OpenAI, Azure OpenAI Responses, and OpenAI Codex providers with official pricing ($1 input, $0.05 cached input, $1.25 cache writes, $5 output, long-context tier above 272k), tool search, and mid-conversation effort changes. Unlike GPT-6.1 Sol it supports `off` (reasoning effort `none`); Codex serves it with a 500K context window
 - Added the Antigravity provider with OAuth login for Google subscriptions. It serves Gemini, Claude, and GPT-OSS models through Cloud Code Assist, resolves or provisions the managed Cloud Code project during login, and filters the model list to the account's available models. `PI_AI_ANTIGRAVITY_VERSION` overrides the reported Hub version
+- Added `serviceTier` to `SimpleStreamOptions`. `streamSimple` on the OpenAI Responses and OpenAI Codex Responses adapters now sends it as `service_tier` and prices usage for it; before, only the adapter-specific `stream` options accepted it
 
 ### Changed
 

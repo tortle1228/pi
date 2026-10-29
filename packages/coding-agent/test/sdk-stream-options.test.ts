@@ -37,12 +37,12 @@ describe("createAgentSession stream options", () => {
 		}
 	});
 
-	function createModel(api: Api): Model<Api> {
+	function createModel(api: Api, provider = "capture-provider"): Model<Api> {
 		return {
 			id: "capture-model",
 			name: "Capture Model",
 			api,
-			provider: "capture-provider",
+			provider,
 			baseUrl: "https://capture.invalid/v1",
 			reasoning: false,
 			input: ["text"],
@@ -320,5 +320,77 @@ describe("createAgentSession stream options", () => {
 			"x-hook": "provider:model:explicit",
 		});
 		expect(options).not.toHaveProperty("transformHeaders");
+	});
+
+	describe("fast mode", () => {
+		type FastModeStep = "turn-on" | "leave";
+
+		/** Run `step` on a fresh session for the model, then report the next request's tier and the session state. */
+		async function captureServiceTier(
+			provider: string,
+			api: Api,
+			step: FastModeStep,
+			settings: Partial<Settings> = {},
+		) {
+			const model = createModel(api, provider);
+			const authStorage = AuthStorage.create(join(agentDir, "auth.json"));
+			const modelRegistry = await createModelRegistry(authStorage, join(agentDir, "models.json"));
+			let capturedOptions: SimpleStreamOptions | undefined;
+			// An explicit key configures built-in providers such as openai-codex, whose stored login is OAuth.
+			modelRegistry.registerProvider(provider, {
+				api,
+				apiKey: "test-api-key",
+				streamSimple: (_model, _context, providerOptions) => {
+					capturedOptions = providerOptions;
+					return createDoneStream(api);
+				},
+			});
+			const { session } = await createAgentSession({
+				cwd,
+				agentDir,
+				model,
+				modelRuntime: getModelRuntime(modelRegistry),
+				settingsManager: SettingsManager.inMemory(settings),
+				sessionManager: SessionManager.inMemory(cwd),
+			});
+			try {
+				if (step === "turn-on") session.setFastMode(true);
+				const stream = await session.agent.streamFunction(model, normalizeContext({ messages: [] }), {});
+				await stream.result();
+				if (!capturedOptions) throw new Error("The provider received no request");
+				return {
+					serviceTier: capturedOptions.serviceTier,
+					active: session.isFastModeActive(),
+					supported: session.supportsFastMode(),
+				};
+			} finally {
+				session.dispose();
+				modelRegistry.unregisterProvider(provider);
+			}
+		}
+
+		it("requests the priority tier for OpenAI Codex and OpenAI models once fast mode is on", async () => {
+			const expected = { serviceTier: "priority", active: true, supported: true };
+			expect(await captureServiceTier("openai-codex", "openai-codex-responses", "turn-on")).toEqual(expected);
+			expect(await captureServiceTier("openai", "openai-responses", "turn-on")).toEqual(expected);
+		});
+
+		it("sends no tier while fast mode is off", async () => {
+			expect(await captureServiceTier("openai-codex", "openai-codex-responses", "leave")).toEqual({
+				serviceTier: undefined,
+				active: false,
+				supported: true,
+			});
+		});
+
+		it("never sends a tier to other providers that reuse the OpenAI Responses API", async () => {
+			const settings: Partial<Settings> = { modelServiceTiers: { "github-copilot/capture-model": "priority" } };
+			expect(await captureServiceTier("github-copilot", "openai-responses", "leave", settings)).toEqual({
+				serviceTier: undefined,
+				active: false,
+				supported: false,
+			});
+			await expect(captureServiceTier("github-copilot", "openai-responses", "turn-on")).rejects.toThrow();
+		});
 	});
 });
