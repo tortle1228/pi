@@ -148,12 +148,13 @@ The MCP resource tools (`list_mcp_resources`, `list_mcp_resource_templates`, `re
 | `find` | Find paths using glob patterns |
 | `ls` | List directory contents |
 
-Built-in extensions add two more tools. They are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
+Built-in extensions add three more tools. They are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
 
 | Built-in extension | Purpose |
 |---|---|
 | `codemode` | Run JavaScript that calls the other tools, for example in parallel with `Promise.allSettled`; only the script's output reaches the model |
 | `tool_search` | Search tools that are not declared to the model (`codemode` and `deferred` exposure, such as MCP tools) and declare the matches for the next call |
+| `apply_patch` | Edit files with Codex-format patches (`*** Begin Patch` ... `*** End Patch`) that add, update, move, or delete files. Use it in place of `edit` and `write`: `"defaultTools": ["+apply_patch", "-edit", "-write"]`. APIs with OpenAI grammar tools, such as `openai-codex`, receive it as a freeform tool |
 
 ### Enable codemode
 

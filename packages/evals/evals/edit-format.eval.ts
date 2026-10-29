@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ToolResultMessage } from "@earendil-works/pi-ai/compat";
 import { expect } from "vitest";
+import { createApplyPatchTool } from "@earendil-works/pi-coding-agent";
 import { describeEval } from "vitest-evals";
 import {
 	EDIT_RESULTS_PATH,
@@ -20,7 +21,7 @@ import {
 } from "../src/edit-format.ts";
 import { createPiCodingAgentHarness, resolveModelSelection } from "../src/harness.ts";
 
-const EDIT_FORMATS = ["replace", "hashline"] as const;
+const EDIT_FORMATS = ["replace", "hashline", "apply_patch"] as const;
 type EditFormat = (typeof EDIT_FORMATS)[number];
 
 const packageDir = fileURLToPath(new URL("..", import.meta.url));
@@ -39,11 +40,18 @@ function resolveEditFormat(value: string | undefined): EditFormat {
 	throw new TypeError(`PI_EVAL_EDIT_FORMAT must be one of ${EDIT_FORMATS.join(", ")}.`);
 }
 
+function hasPatchFailures(details: unknown): boolean {
+	const failures = (details as { result?: { failures?: unknown[] } } | undefined)?.result?.failures;
+	return Array.isArray(failures) && failures.length > 0;
+}
+
 function registerTask(task: EditTask): void {
 	const harness = createPiCodingAgentHarness({
 		name: `${format}:${task.id}`,
-		tools: ["read", "edit", "write"],
-		settings: { editMode: format },
+		// apply_patch replaces both edit and write, as in Codex; the other formats keep write as a fallback.
+		tools: format === "apply_patch" ? ["read", "apply_patch"] : ["read", "edit", "write"],
+		customTools: format === "apply_patch" ? [createApplyPatchTool()] : undefined,
+		settings: { editMode: format === "apply_patch" ? "replace" : format },
 		workspaceFiles: { [task.fileName]: task.input },
 		output: async ({ session }) => {
 			const path = join(session.sessionManager.getCwd(), task.fileName);
@@ -51,14 +59,17 @@ function registerTask(task: EditTask): void {
 			const calls = session.messages.flatMap((message) =>
 				message.role === "assistant" ? message.content.filter((part) => part.type === "toolCall") : [],
 			);
+			// apply_patch reports hunks that did not apply in its details instead of failing the call.
 			const failedEdits = session.messages.filter(
 				(message): message is ToolResultMessage =>
-					message.role === "toolResult" && message.toolName === "edit" && message.isError,
+					message.role === "toolResult" &&
+					(message.toolName === "edit" || message.toolName === "apply_patch") &&
+					(message.isError || hasPatchFailures(message.details)),
 			).length;
 			const stats = session.getSessionStats();
 			return {
 				...grade,
-				editCalls: calls.filter((call) => call.name === "edit").length,
+				editCalls: calls.filter((call) => call.name === "edit" || call.name === "apply_patch").length,
 				failedEdits,
 				writeCalls: calls.filter((call) => call.name === "write").length,
 				toolCalls: calls.length,

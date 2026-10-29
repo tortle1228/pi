@@ -53,7 +53,7 @@ PI_PROVIDER=anthropic PI_MODEL=claude-sonnet-5-5 PI_EVAL_EDIT_FORMAT=hashline \
 npm run eval:edit:report -w packages/evals
 ```
 
-`PI_EVAL_EDIT_FORMAT` is `replace` (default) or `hashline`. `PI_EVAL_EDIT_TASKS` (default 30, at most 106) sets how many tasks run, picked evenly across mutation categories, so every model and format gets the same sample. Each run appends one line per task to `.eval/edit-format/results.jsonl`, including failed runs; the report counts the latest run of each task and prints exact and whitespace-normalized pass rates, edit calls, failed edits, how often `write` replaced the edit, and tokens per model and format. These runs call the selected model and spend tokens or subscription quota.
+`PI_EVAL_EDIT_FORMAT` is `replace` (default), `hashline`, or `apply_patch`, which gives the agent `read` and `apply_patch` instead of `edit` and `write`. `PI_EVAL_EDIT_TASKS` (default 30, at most 106) sets how many tasks run, picked evenly across mutation categories, so every model and format gets the same sample. Each run appends one line per task to `.eval/edit-format/results.jsonl`, including failed runs; the report counts the latest run of each task and prints exact and whitespace-normalized pass rates, edit calls, failed edits, how often `write` replaced the edit, and tokens per model and format. These runs call the selected model and spend tokens or subscription quota.
 
 ## Run documentation comparisons
 
