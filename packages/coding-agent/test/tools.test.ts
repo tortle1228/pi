@@ -15,6 +15,7 @@ import { createEditToolDefinition } from "../src/core/tools/edit.ts";
 import { computeEditsDiff } from "../src/core/tools/edit-diff.ts";
 import { createFindToolDefinition } from "../src/core/tools/find.ts";
 import { createGrepToolDefinition } from "../src/core/tools/grep.ts";
+import type { GrepEngine, GrepEngineRequest } from "../src/core/tools/grep-engine.ts";
 import { createLsToolDefinition } from "../src/core/tools/ls.ts";
 import { createReadToolDefinition } from "../src/core/tools/read.ts";
 import { createWriteToolDefinition } from "../src/core/tools/write.ts";
@@ -989,6 +990,42 @@ describe("Coding Agent Tools", () => {
 				mode: "files",
 			});
 			expect(getTextOutput(result)).toBe("src/index.ts\nlib/index.ts");
+		});
+
+		it("should page and format the hits of a custom engine", async () => {
+			const requests: GrepEngineRequest[] = [];
+			const engine: GrepEngine = {
+				search: async (request) => {
+					requests.push(request);
+					return [
+						{ type: "match", filePath: join(testDir, "a.ts"), lineNumber: 1, lineText: "one\n" },
+						{ type: "match", filePath: join(testDir, "a.ts"), lineNumber: 4, lineText: "two\nthree\n" },
+						{ type: "match", filePath: join(testDir, "b.ts"), lineNumber: 2, lineText: "four\n" },
+					];
+				},
+			};
+
+			const result = await createGrepTool(testDir, { engine }).execute("test-call-engine", {
+				pattern: "x",
+				glob: "*.ts",
+				limit: 1,
+				skip: 1,
+			});
+			expect(requests).toEqual([
+				{
+					pattern: "x",
+					paths: [testDir],
+					globs: ["*.ts"],
+					ignoreCase: false,
+					literal: false,
+					multiline: false,
+					mode: "content",
+					maxHits: 3,
+				},
+			]);
+			expect(getTextOutput(result)).toBe(
+				"a.ts:4: two\na.ts:5: three\n\n[1 matches limit reached. Use skip=2 for more, or refine pattern]",
+			);
 		});
 
 		it("should number every line of a multiline match", async () => {

@@ -34,6 +34,8 @@ export {
 	type GrepToolInput,
 	type GrepToolOptions,
 } from "./grep.ts";
+export type { GrepEngine, GrepEngineRequest, GrepHit, GrepMode } from "./grep-engine.ts";
+export { createRgGrepEngine } from "./grep-rg-engine.ts";
 export {
 	createLsTool,
 	createLsToolDefinition,
