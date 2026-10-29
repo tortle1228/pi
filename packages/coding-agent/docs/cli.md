@@ -196,6 +196,8 @@ Scripts run in a QuickJS sandbox and reach the other tools through `tools.<name>
 
 The full output of each job is kept in a log file in the temp directory, named in the result when part of it is not shown. Jobs stop when the session ends, including on `/reload`, `/new`, `/resume`, and `/fork`.
 
+When a job ends on its own, Pi adds a `job-ended` message with its state, such as `Background job-1 exited with code 1 after 12.3s: npm test`. While the agent is working, the model sees it before its next request; while the session is idle, it is added to the session and the model sees it with the next prompt. It never starts a turn by itself. Jobs ended with `cancel` or by the session end, and jobs an `output` call with `wait` is waiting for, are not reported.
+
 <a id="resource-options"></a>
 
 ## Resources

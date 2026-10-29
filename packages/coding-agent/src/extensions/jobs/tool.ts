@@ -7,6 +7,14 @@ import type { JobOutput, JobRegistry, JobSnapshot, JobStatus } from "./job-regis
 
 export const JOB_TOOL_NAME = "job";
 
+/** `customType` of the message that reports a job which ended on its own. */
+export const JOB_ENDED_MESSAGE_TYPE = "job-ended";
+
+/** The text of that message. */
+export function formatJobEnded(job: JobSnapshot): string {
+	return `Background ${describeJob(job)}: ${job.command}\nRead its output with the job tool, action "output" and id "${job.id}".`;
+}
+
 /** The longest `wait`, so a forgotten job cannot hold a turn indefinitely. */
 const MAX_WAIT_SECONDS = 600;
 
@@ -66,7 +74,7 @@ export function createJobToolDefinition(options: JobToolOptions): ToolDefinition
 				}
 				case "cancel": {
 					const job = await registry.cancel(requireId(params));
-					return { content: [{ type: "text", text: describe(job) }], details: { jobs: [job] } };
+					return { content: [{ type: "text", text: describeJob(job) }], details: { jobs: [job] } };
 				}
 				case "list": {
 					const jobs = registry.list();
@@ -84,13 +92,13 @@ function requireId(params: JobToolInput): string {
 }
 
 function formatOutput(job: JobOutput): string {
-	const lines = [describe(job), job.output || "(no new output)"];
+	const lines = [describeJob(job), job.output || "(no new output)"];
 	if (job.truncated) lines.push(`[Earlier output not shown. Full output: ${job.logPath}]`);
 	return lines.join("\n");
 }
 
 /** One line such as `job-1 exited with code 0 after 3.2s`. */
-function describe(job: JobSnapshot): string {
+export function describeJob(job: JobSnapshot): string {
 	return `${job.id} ${describeStatus(job.status)} ${job.status.state === "running" ? "for" : "after"} ${job.elapsedSeconds}s`;
 }
 
@@ -109,5 +117,5 @@ function describeStatus(status: JobStatus): string {
 
 function formatListLine(job: JobSnapshot): string {
 	const command = job.command.replace(/\s+/g, " ");
-	return `${describe(job)}: ${command.length > 80 ? `${command.slice(0, 77)}...` : command}`;
+	return `${describeJob(job)}: ${command.length > 80 ? `${command.slice(0, 77)}...` : command}`;
 }

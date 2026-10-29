@@ -48,18 +48,25 @@ interface Job {
 	decoder: TextDecoder;
 	log: { path: string; stream: WriteStream };
 	abort: AbortController;
+	/** `read` calls waiting for this job to end; they report the end themselves. */
+	waitingReads: number;
 	/** Settles when the process has exited, the status is final, and the log file is complete. */
 	done: Promise<void>;
 }
 
+/** Called when a job ends on its own, that is not through `cancel` or `dispose`, and no `read` is waiting for it. */
+export type JobEndListener = (job: JobSnapshot) => void;
+
 /** The jobs of one session. */
 export class JobRegistry {
 	private readonly operations: BashOperations;
+	private readonly onEnd: JobEndListener | undefined;
 	private readonly jobs = new Map<string, Job>();
 	private nextId = 1;
 
-	constructor(operations: BashOperations) {
+	constructor(operations: BashOperations, onEnd?: JobEndListener) {
 		this.operations = operations;
+		this.onEnd = onEnd;
 	}
 
 	/** Starts `command` in `cwd` and returns at once. `commandPrefix` runs first, as for the bash tool. */
@@ -76,6 +83,7 @@ export class JobRegistry {
 			decoder: new TextDecoder(),
 			log: createOutputFileStream("pi-job", ".log"),
 			abort,
+			waitingReads: 0,
 			done: Promise.resolve(),
 		};
 		const onData = (data: Buffer) => {
@@ -97,6 +105,7 @@ export class JobRegistry {
 				this.appendUnread(job, job.decoder.decode());
 				job.status = status;
 				job.endedAt = Date.now();
+				if (status.state !== "cancelled" && job.waitingReads === 0) this.onEnd?.(this.snapshot(job));
 				return new Promise<void>((resolve) => job.log.stream.end(resolve));
 			});
 		this.jobs.set(id, job);
@@ -109,7 +118,14 @@ export class JobRegistry {
 	 */
 	async read(id: string, waitMs: number, signal?: AbortSignal): Promise<JobOutput> {
 		const job = this.get(id);
-		if (waitMs > 0 && job.status.state === "running") await waitFor(job.done, waitMs, signal);
+		if (waitMs > 0 && job.status.state === "running") {
+			job.waitingReads++;
+			try {
+				await waitFor(job.done, waitMs, signal);
+			} finally {
+				job.waitingReads--;
+			}
+		}
 		const unread = job.unread;
 		const dropped = job.droppedChars;
 		job.unread = "";

@@ -133,6 +133,35 @@ describe("JobRegistry", () => {
 		expect(readFileSync(result.logPath, "utf-8")).toBe(`${lines.join("\n")}\n`);
 	});
 
+	it("reports jobs that end on their own, but not cancelled ones or ones a read waits for", async () => {
+		const { operations, runs } = fakeOperations();
+		const ended: string[] = [];
+		let onNextEnd: (() => void) | undefined;
+		const nextEnd = () =>
+			new Promise<void>((resolve) => {
+				onNextEnd = resolve;
+			});
+		const registry = new JobRegistry(operations, (job) => {
+			ended.push(`${job.id} ${job.status.state}`);
+			onNextEnd?.();
+		});
+		for (const command of ["exits", "fails", "cancelled", "awaited", "disposed"]) registry.start(command, "/repo");
+
+		let ending = nextEnd();
+		runs[0].exit(0);
+		await ending;
+		ending = nextEnd();
+		runs[1].fail(new Error("spawn failed"));
+		await ending;
+		await registry.cancel("job-3");
+		const awaited = registry.read("job-4", 60_000);
+		runs[3].exit(1);
+		await awaited;
+		await registry.dispose();
+
+		expect(ended).toEqual(["job-1 exited", "job-2 failed"]);
+	});
+
 	it("rejects an unknown job id", async () => {
 		const registry = new JobRegistry(fakeOperations().operations);
 		await expect(registry.read("job-9", 0)).rejects.toThrow('Unknown job: job-9. Use action "list" to see the jobs.');

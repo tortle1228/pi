@@ -3,13 +3,14 @@
  * their extension factories.
  *
  * `job` is registered inactive. Activate it with `--tools`, the `defaultTools` setting (`"+job"`), or
- * `setActiveTools()`. Jobs run with the `shellPath` and `shellCommandPrefix` settings and stop when the session ends.
+ * `setActiveTools()`. Jobs run with the `shellPath` and `shellCommandPrefix` settings and stop when the session ends. A
+ * job that ends on its own is reported with a `job-ended` message.
  */
 
 import type { ExtensionFactory } from "../../core/extensions/types.ts";
 import { type BashOperations, createLocalBashOperations } from "../../core/tools/bash.ts";
 import { JobRegistry } from "./job-registry.ts";
-import { createJobToolDefinition } from "./tool.ts";
+import { createJobToolDefinition, formatJobEnded, JOB_ENDED_MESSAGE_TYPE } from "./tool.ts";
 
 export interface JobsExtensionOptions {
 	/** Runs the commands. Default: the local shell. */
@@ -23,7 +24,14 @@ export function createJobsExtension(options: JobsExtensionOptions = {}): Extensi
 			exec: (command, cwd, execOptions) =>
 				createLocalBashOperations({ shellPath: pi.getSettings().shellPath }).exec(command, cwd, execOptions),
 		};
-		const registry = new JobRegistry(operations);
+		// A job that ends on its own is reported to the model: before its next call while it runs, or with the next
+		// prompt while idle. It never starts a turn by itself.
+		const registry = new JobRegistry(operations, (job) =>
+			pi.sendMessage(
+				{ customType: JOB_ENDED_MESSAGE_TYPE, content: formatJobEnded(job), display: true, details: job },
+				{ deliverAs: "steer" },
+			),
+		);
 		pi.registerTool({
 			...createJobToolDefinition({ registry, getCommandPrefix: () => pi.getSettings().shellCommandPrefix }),
 			defaultActive: false,
