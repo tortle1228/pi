@@ -5,7 +5,9 @@ import { access as fsAccess, readFile as fsReadFile } from "fs/promises";
 import { type Static, Type } from "typebox";
 import { processImage } from "../../utils/image-process.ts";
 import { detectSupportedImageMimeTypeFromFile } from "../../utils/mime.ts";
+import { splitBom } from "../../utils/text.ts";
 import type { ExtensionContext, ToolDefinition } from "../extensions/types.ts";
+import { formatTaggedLines } from "./hashline.ts";
 import { resolveReadPathAsync } from "./path-utils.ts";
 import { readRenderers } from "./renderers/read.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -67,6 +69,8 @@ export interface ReadToolOptions {
 	resizeOptions?: ModelImageResizeOptions;
 	/** Custom operations for file reading. Default: local filesystem */
 	operations?: ReadOperations;
+	/** Show each text line as `TAG|text` for the hashline edit, such as `12#kq|const a = 1;`. Default: false */
+	hashline?: boolean;
 }
 
 /** The image block and its note, or the text for text files and images that could not be processed. */
@@ -90,6 +94,7 @@ export function createReadToolDefinition(
 	const autoResizeImages = options?.autoResizeImages ?? true;
 	const fallbackResizeOptions = options?.resizeOptions;
 	const ops = options?.operations ?? defaultReadOperations;
+	const hashline = options?.hashline ?? false;
 	return {
 		name: "read",
 		label: "read",
@@ -153,8 +158,14 @@ export function createReadToolDefinition(
 							} else {
 								// Read text content.
 								const buffer = await ops.readFile(absolutePath);
-								const textContent = buffer.toString("utf-8");
+								// In hashline mode a BOM would change the hash of line 1; the edit strips it before matching too.
+								const decoded = buffer.toString("utf-8");
+								const textContent = hashline ? splitBom(decoded).text : decoded;
 								const allLines = textContent.split("\n");
+								// Hashline tags address lines; the empty piece after a final newline is not one.
+								if (hashline && allLines.length > 1 && allLines.at(-1) === "") allLines.pop();
+								const joinLines = (lines: string[], firstLine: number) =>
+									hashline ? formatTaggedLines(lines, firstLine) : lines.join("\n");
 								const totalFileLines = allLines.length;
 								// Apply offset if specified. Convert from 1-indexed input to 0-indexed array access.
 								const startLine = offset ? Math.max(0, offset - 1) : 0;
@@ -168,10 +179,10 @@ export function createReadToolDefinition(
 								// If limit is specified by the user, honor it first. Otherwise truncateHead decides.
 								if (limit !== undefined) {
 									const endLine = Math.min(startLine + limit, allLines.length);
-									selectedContent = allLines.slice(startLine, endLine).join("\n");
+									selectedContent = joinLines(allLines.slice(startLine, endLine), startLineDisplay);
 									userLimitedLines = endLine - startLine;
 								} else {
-									selectedContent = allLines.slice(startLine).join("\n");
+									selectedContent = joinLines(allLines.slice(startLine), startLineDisplay);
 								}
 								// Apply truncation, respecting both line and byte limits.
 								const truncation = truncateHead(selectedContent);

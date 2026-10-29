@@ -192,6 +192,37 @@ const CodemodeSettingsSchema = Type.Object({
 	),
 });
 
+const LspServerSettingsSchema = Type.Object({
+	command: Type.Optional(
+		Type.Array(Type.String(), {
+			description:
+				'Command and arguments that start the server on stdio, such as ["typescript-language-server", "--stdio"].',
+		}),
+	),
+	extensions: Type.Optional(
+		Type.Array(Type.String(), { description: 'File extensions the server checks, such as [".ts", ".tsx"].' }),
+	),
+	initializationOptions: Type.Optional(
+		Type.Unknown({ description: "Server-specific options sent with the initialize request." }),
+	),
+	disabled: Type.Optional(Type.Boolean({ description: "Turn off a built-in server." })),
+});
+
+const LspSettingsSchema = Type.Object({
+	enabled: Type.Optional(
+		Type.Boolean({
+			description: "Append language server diagnostics to the results of the edit and write tools.",
+			default: SETTINGS_DEFAULTS.lsp.enabled,
+		}),
+	),
+	servers: Type.Optional(
+		Type.Record(Type.String(), LspServerSettingsSchema, {
+			description:
+				"Language servers by name. A built-in name (typescript, pyright, rust-analyzer, gopls) changes or disables that server; another name adds one.",
+		}),
+	),
+});
+
 const PackageSourceSchema = Type.Union(
 	[
 		Type.String({ description: "Load all resources from the package." }),
@@ -307,6 +338,13 @@ export const SettingsSchema = Type.Object(
 		shellCommandPrefix: Type.Optional(
 			Type.String({ description: "Prefix prepended to every bash command, for example to enable shell aliases." }),
 		),
+		shellRedactSecrets: Type.Optional(
+			Type.Boolean({
+				description:
+					"Mask API keys, tokens, and private keys in shell command output before it is shown, saved, or sent to the model.",
+				default: SETTINGS_DEFAULTS.shellRedactSecrets,
+			}),
+		),
 		npmCommand: Type.Optional(
 			Type.Array(Type.String(), {
 				description:
@@ -371,6 +409,13 @@ export const SettingsSchema = Type.Object(
 					"Initial tool selection. Plain names replace the inherited selection; +name and -name entries add or remove tools.",
 			}),
 		),
+		editMode: Type.Optional(
+			Type.Union([Type.Literal("replace"), Type.Literal("hashline")], {
+				description:
+					'How the edit tool addresses text. "replace": by exact old text. "hashline": by the line tags that read and grep then show, such as 12#kq.',
+				default: SETTINGS_DEFAULTS.editMode,
+			}),
+		),
 		doubleEscapeAction: Type.Optional(
 			Type.Union([Type.Literal("fork"), Type.Literal("tree"), Type.Literal("none")], {
 				description: "Action for double-escape with an empty editor.",
@@ -422,6 +467,7 @@ export const SettingsSchema = Type.Object(
 		warnings: Type.Optional(WarningSettingsSchema),
 		prompt: Type.Optional(PromptSettingsSchema),
 		codemode: Type.Optional(CodemodeSettingsSchema),
+		lsp: Type.Optional(LspSettingsSchema),
 		sessionDir: Type.Optional(
 			Type.String({
 				description: "Custom session storage directory, in the same format as the --session-dir CLI flag.",
@@ -505,6 +551,8 @@ export interface WarningSettings extends Static<typeof WarningSettingsSchema> {}
 export interface PromptSettings extends Static<typeof PromptSettingsSchema> {}
 export type CodemodeMode = Static<typeof CodemodeModeSchema>;
 export interface CodemodeSettings extends Static<typeof CodemodeSettingsSchema> {}
+export interface LspServerSettings extends Static<typeof LspServerSettingsSchema> {}
+export interface LspSettings extends Static<typeof LspSettingsSchema> {}
 export type DefaultProjectTrust = NonNullable<SettingsInput["defaultProjectTrust"]>;
 export type QuietStartup = NonNullable<SettingsInput["quietStartup"]>;
 export type TransportSetting = NonNullable<SettingsInput["transport"]>;

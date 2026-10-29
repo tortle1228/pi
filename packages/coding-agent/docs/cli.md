@@ -154,6 +154,8 @@ Built-in extensions add optional tools. They are off by default; name them in `-
 |---|---|
 | `codemode` | Run JavaScript that calls the other tools, for example in parallel with `Promise.allSettled`; only the script's output reaches the model |
 | `tool_search` | Search tools that are not declared to the model (`codemode` and `deferred` exposure, such as MCP tools) and declare the matches for the next call |
+| `apply_patch` | Edit files with Codex-format patches (`*** Begin Patch` ... `*** End Patch`) that add, update, move, or delete files. Use it in place of `edit` and `write`: `"defaultTools": ["+apply_patch", "-edit", "-write"]`. APIs with OpenAI grammar tools, such as `openai-codex`, receive it as a freeform tool |
+| `job` | Run shell commands in the background, such as dev servers and watchers, and read their output later |
 
 The `builtin:session-search` extension additionally provides `session_search` and `session_read` for read-only retrieval of past session evidence. Enable them with `pi --tools +session_search,+session_read`. See [Session search](sessions.md#search-past-sessions-with-the-agent) for scope, branch references, context edits, and output limits.
 
@@ -182,6 +184,21 @@ Scripts run in a QuickJS sandbox and reach the other tools through `tools.<name>
 ### Tool search
 
 `tool_search` is off by default; enable it with `"defaultTools": ["+tool_search"]` or `--tools`. It uses the same ranking as `searchTools()` over tools that are not declared yet and declares the matches for the next model call. Loaded tools are recorded in the session like other tool changes, so they stay declared on that branch.
+
+### Background jobs
+
+`job` is off by default; enable it with `"defaultTools": ["+job"]` or `--tools`. It takes an `action`:
+
+| Action | Does |
+|---|---|
+| `start` | Runs `command` with the same shell, `shellPath`, and `shellCommandPrefix` as `bash`, and returns a job id such as `job-1` at once |
+| `output` | Returns what the job printed since the previous `output` call, within the usual tool output limits, and its state. With `wait` (seconds, at most 600), it first waits for the job to end |
+| `cancel` | Stops the job and its child processes |
+| `list` | Shows every job of the session with its state and run time |
+
+The full output of each job is kept in a log file in the temp directory, named in the result when part of it is not shown. Jobs stop when the session ends, including on `/reload`, `/new`, `/resume`, and `/fork`.
+
+When a job ends on its own, Pi adds a `job-ended` message with its state, such as `Background job-1 exited with code 1 after 12.3s: npm test`. While the agent is working, the model sees it before its next request; while the session is idle, it is added to the session and the model sees it with the next prompt. It never starts a turn by itself. Jobs ended with `cancel` or by the session end, and jobs an `output` call with `wait` is waiting for, are not reported.
 
 <a id="resource-options"></a>
 

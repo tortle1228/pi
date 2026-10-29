@@ -2390,6 +2390,8 @@ The `create*ToolDefinition()` factories, such as `createReadToolDefinition()`, r
 
 **Operations interfaces:** `ReadOperations`, `WriteOperations`, `EditOperations`, `BashOperations`, `PowerShellOperations`, `LsOperations`, `GrepOperations`, `FindOperations`
 
+`GrepOperations` covers path checks and the file reads for context lines. The search itself runs in a `GrepEngine`, by default on the local machine: the native in-process engine when it is built for the platform, otherwise ripgrep (`createRgGrepEngine()`). To search elsewhere, pass `createGrepTool(cwd, { operations, engine })` an engine whose `search(request, signal)` returns hits sorted by path, then line; the tool keeps paging, path display, and formatting.
+
 For `user_bash`, extensions can reuse Pi's local shell backend via `createLocalBashOperations()` (or `createLocalPowerShellOperations()`) instead of reimplementing local process spawning, shell resolution, and process-tree termination.
 
 The `bash` and `powershell` tools also support a spawn hook to adjust the command, cwd, or env before execution:

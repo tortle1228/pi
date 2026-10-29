@@ -9,7 +9,9 @@
 		"eval:host": "vitest run --config vitest.evals.config.ts --project host",
 		"eval:audit": "vitest run --config vitest.evals.config.ts --project audit",
 		"eval:docs": "node --experimental-strip-types src/cli.ts",
-		"test": "vitest run --config vitest.test.config.ts"
+		"test": "vitest run --config vitest.test.config.ts",
+		"eval:edit": "vitest run --config vitest.evals.config.ts --project edit",
+		"eval:edit:report": "node --experimental-strip-types src/edit-format-report.ts"
 	},
 	"devDependencies": {
 		"@earendil-works/pi-ai": "1.4.0",

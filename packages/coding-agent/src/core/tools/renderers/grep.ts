@@ -14,15 +14,33 @@ import type { GrepToolDetails } from "../grep.ts";
 import { getTextOutput, invalidArgText, shortenPath, str } from "../render-utils.ts";
 import { DEFAULT_MAX_BYTES, formatSize } from "../truncate.ts";
 
+/** Renders a string or a list of strings as one comma-separated string; null for anything else. */
+function strList(value: unknown): string | null {
+	if (Array.isArray(value)) return value.every((item) => typeof item === "string") ? value.join(", ") : null;
+	return str(value);
+}
+
 function formatGrepCall(
-	args: { pattern: string; path?: string; glob?: string; limit?: number } | undefined,
+	args:
+		| {
+				pattern: string;
+				path?: string | string[];
+				glob?: string | string[];
+				mode?: string;
+				limit?: number;
+				skip?: number;
+		  }
+		| undefined,
 	theme: Theme,
 ): string {
 	const pattern = str(args?.pattern);
-	const rawPath = str(args?.path);
-	const path = rawPath !== null ? shortenPath(rawPath || ".") : null;
-	const glob = str(args?.glob);
+	const rawPaths: unknown[] = Array.isArray(args?.path) && args.path.length > 0 ? args.path : [args?.path];
+	const paths = rawPaths.map(str);
+	const path = paths.includes(null) ? null : paths.map((item) => shortenPath(item || ".")).join(", ");
+	const glob = strList(args?.glob);
+	const mode = str(args?.mode);
 	const limit = args?.limit;
+	const skip = args?.skip;
 	const invalidArg = invalidArgText(theme);
 	let text =
 		theme.fg("toolTitle", theme.bold("grep")) +
@@ -30,7 +48,9 @@ function formatGrepCall(
 		(pattern === null ? invalidArg : theme.fg("accent", `/${pattern || ""}/`)) +
 		theme.fg("toolOutput", ` in ${path === null ? invalidArg : path}`);
 	if (glob) text += theme.fg("toolOutput", ` (${glob})`);
+	if (mode && mode !== "content") text += theme.fg("toolOutput", ` ${mode}`);
 	if (limit !== undefined) text += theme.fg("toolOutput", ` limit ${limit}`);
+	if (skip) text += theme.fg("toolOutput", ` skip ${skip}`);
 	return text;
 }
 function formatGrepResult(
@@ -56,11 +76,13 @@ function formatGrepResult(
 	}
 
 	const matchLimit = result.details?.matchLimitReached;
+	const fileLimit = result.details?.fileLimitReached;
 	const truncation = result.details?.truncation;
 	const linesTruncated = result.details?.linesTruncated;
-	if (matchLimit || truncation?.truncated || linesTruncated) {
+	if (matchLimit || fileLimit || truncation?.truncated || linesTruncated) {
 		const warnings: string[] = [];
 		if (matchLimit) warnings.push(`${matchLimit} matches limit`);
+		if (fileLimit) warnings.push(`${fileLimit} files limit`);
 		if (truncation?.truncated) warnings.push(`${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit`);
 		if (linesTruncated) warnings.push("some lines truncated");
 		text += `\n${theme.fg("warning", `[Truncated: ${warnings.join(", ")}]`)}`;

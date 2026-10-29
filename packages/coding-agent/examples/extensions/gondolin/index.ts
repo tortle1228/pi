@@ -242,7 +242,20 @@ async function executeGondolinGrep(
 	params: GrepToolInput,
 	signal?: AbortSignal,
 ): Promise<TextToolResult<GrepToolDetails>> {
-	const root = toGuestPath(localCwd, params.path ?? ".");
+	// This example implements only the basic content search of the built-in grep schema.
+	const single = (value: string | string[] | undefined, name: string): string | undefined => {
+		if (!Array.isArray(value)) return value;
+		if (value.length > 1) throw new Error(`gondolin grep supports only one ${name}`);
+		return value[0];
+	};
+	const unsupported = [
+		params.mode && params.mode !== "content" ? "mode" : undefined,
+		params.skip ? "skip" : undefined,
+		params.multiline ? "multiline" : undefined,
+	].filter((name) => name !== undefined);
+	if (unsupported.length > 0) throw new Error(`gondolin grep does not support: ${unsupported.join(", ")}`);
+	const glob = single(params.glob, "glob");
+	const root = toGuestPath(localCwd, single(params.path, "path") ?? ".");
 	const rootStat = await vm.fs.stat(root, { signal });
 	const rootIsDirectory = rootStat.isDirectory();
 	const matcher = createLineMatcher(params.pattern, params.literal, params.ignoreCase);
@@ -259,7 +272,7 @@ async function executeGondolinGrep(
 		root,
 		async (guestPath, relativePath) => {
 			if (matchCount >= effectiveLimit) return false;
-			if (params.glob && !matchesToolGlob(relativePath, params.glob)) return true;
+			if (glob && !matchesToolGlob(relativePath, glob)) return true;
 			let content: string;
 			try {
 				content = await vm.fs.readFile(guestPath, { encoding: "utf8", signal });

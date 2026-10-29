@@ -1,0 +1,26 @@
+[package]
+name = "pi-grep"
+version = "0.1.0"
+edition = "2024"
+description = "In-process grep engine for the pi grep tool, loaded as a Node-API addon"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+grep-matcher = "=0.1.9"
+grep-regex = "=0.1.14"
+grep-searcher = "=0.1.17"
+ignore = "=0.4.33"
+napi = "=3.15.0"
+napi-derive = "=3.6.13"
+rayon = "=1.12.0"
+
+[build-dependencies]
+napi-build = "=2.6.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

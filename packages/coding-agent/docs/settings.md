@@ -41,8 +41,11 @@ See [Choose a Model](models.md) for model selection and thinking controls.
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `defaultTools` | `string[]` | `read`, `bash`, `edit`, `write` | Tools enabled at startup. Plain names replace the defaults; `+name` adds a tool and `-name` removes one. An empty array disables all built-in tools but not extension or SDK tools. |
+| `editMode` | `"replace"` \| `"hashline"` | `"replace"` | How `edit` addresses text. `replace`: by exact old text. `hashline`: by line tags, see below. |
 | `codemode.mode` | `"on"` \| `"only"` | `"on"` | How the `codemode` tool presents tools while it is active. `on`: declared tools get a note on calling them from scripts appended to their description, and `codemode` lists only tools that are not declared. `only`: `codemode` lists every tool scripts can call, and active built-in and extension tools are hidden from the model, so it reaches them through `codemode`. |
 | `codemode.inlineBudget` | number | `3000` | Estimated tokens (characters / 4) the `codemode` tool's description may spend on tool declarations. Tools that do not fit are left out and found with `searchTools()`. `0` lists only namespaces. |
+
+With `"editMode": "hashline"`, `read` and `grep` show each line with a tag of its line number and a two-letter hash of its content, such as `12#kq|const a = 1;` and `src/a.ts:12#kq: const a = 1;`, and `edit` takes `edits` of `start` and `end` tags, or `start` and `insert: "before"` or `"after"`, with the new lines in `newText`. The model then does not repeat old text, and an edit whose tags no longer match the file is rejected with the current lines and fresh tags, before anything is written. The edit result shows the changed lines with their new tags. The mode applies when tools are created, so change it before starting a session or use `/reload`.
 
 Available built-in tools are `read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, and `ls`. `defaultTools` can also name `codemode` and `tool_search`, which built-in extensions register inactive, and other extension tools registered inactive.
 
@@ -59,6 +62,38 @@ This replaces `bash` with `powershell` and enables `grep`: `["-bash", "+powershe
 `/reload` enables tools newly added to `defaultTools`. It does not disable tools removed from it or re-enable unchanged tools you turned off. `--tools` with plain names, `--no-tools`, and `--no-builtin-tools` override `defaultTools`, also on reload.
 
 CLI tool options override this setting for one invocation. `--tools` with only `+name` and `-name` entries changes the resolved `defaultTools` selection instead, for example `pi --tools +codemode`. On `/reload`, these entries apply to the reloaded setting too, so a tool removed with `-name` stays removed. See [Command Line](cli.md#tools).
+
+### LSP diagnostics
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `lsp.enabled` | boolean | `false` | Append language server diagnostics to the results of `edit` and `write`. |
+| `lsp.servers` | object | Built-in servers | Language servers by name. Each entry can set `command` (argv), `extensions`, `initializationOptions`, and `disabled`. |
+
+With `lsp.enabled`, every successful `edit` or `write` result gets the errors and warnings the file's language server reports for the new content, so the model sees them in the same turn. A file without errors or warnings adds nothing. The built-in servers are:
+
+| Name | Command | Files |
+|---|---|---|
+| `typescript` | `typescript-language-server --stdio` | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` |
+| `pyright` | `pyright-langserver --stdio` | `.py`, `.pyi` |
+| `rust-analyzer` | `rust-analyzer` | `.rs` |
+| `gopls` | `gopls` | `.go` |
+
+Pi does not install servers. It looks for the command in the project's `node_modules/.bin`, then on `PATH`, and starts it in the working directory on first use. A server that is not installed is reported once per session. The first check of a server waits up to 10 seconds while it loads the project, later ones up to 3 seconds; when no diagnostics arrive in time, the result says so instead of reporting a clean file. Servers stop when the session ends.
+
+A built-in name changes or disables that server, and another name adds one:
+
+```json
+{
+  "lsp": {
+    "enabled": true,
+    "servers": {
+      "gopls": { "disabled": true },
+      "zig": { "command": ["zls"], "extensions": [".zig"] }
+    }
+  }
+}
+```
 
 ## Prompt
 
@@ -150,6 +185,7 @@ Keep `retry.provider.maxRetries` at `0` unless provider-level retries are requir
 |---|---|---|---|
 | `shellPath` | string | Platform default | Custom shell executable path. Supports a leading `~`. |
 | `shellCommandPrefix` | string | None | Prefix prepended to every shell command. |
+| `shellRedactSecrets` | boolean | `true` | Replace credentials in the output of the `bash` and `powershell` tools, `!` commands, and `job` background jobs with `<redacted>` before the output is shown, written to a temp file, or sent to the model. Matches vendor token shapes (for example `sk-`, `ghp_`, `AKIA`, `xoxb-`), JWTs, `Bearer` tokens, passwords in URLs, and PEM private keys. Output that may still become a credential, such as a trailing `ghp` or `Bearer `, appears once it is complete. |
 | `npmCommand` | `string[]` | `npm` | Command and arguments used for npm package lookup and installation. |
 
 See [Shell aliases](shell-aliases.md) for shell setup and [Pi Packages](packages.md) for package-manager behavior.
@@ -169,7 +205,7 @@ Resource paths in user settings resolve from the agent directory. Paths in proje
 
 Resource arrays support glob exclusions with `!pattern`, exact inclusion with `+path`, and exact exclusion with `-path`. Pi loads resources listed in both user-level and project settings.
 
-The built-in extensions are named `builtin:mcp`, `builtin:llama.cpp`, `builtin:codemode`, and `builtin:tool-search` in `extensions`. They load by default; `-builtin:mcp` disables one. A `+builtin:<name>` or `-builtin:<name>` entry in project settings overrides the user setting. `pi config` lists them under Built-in. `--no-extensions` disables them too, and `-e builtin:<name>` loads one explicitly.
+The built-in extensions are named `builtin:mcp`, `builtin:llama.cpp`, `builtin:codemode`, `builtin:tool-search`, `builtin:apply-patch`, `builtin:jobs`, and `builtin:lsp` in `extensions`. They load by default; `-builtin:mcp` disables one. A `+builtin:<name>` or `-builtin:<name>` entry in project settings overrides the user setting. `pi config` lists them under Built-in. `--no-extensions` disables them too, and `-e builtin:<name>` loads one explicitly.
 
 ## Updates, telemetry, and warnings
 

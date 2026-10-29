@@ -23,7 +23,7 @@ export {
 	parseSkillBlock,
 	type SessionStats,
 } from "./core/agent-session.ts";
-export { readStoredCredential } from "./core/auth-storage.ts";
+export { AuthStorage, readStoredCredential } from "./core/auth-storage.ts";
 export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
 // Compaction
 export {
@@ -345,14 +345,17 @@ export {
 	createEditToolDefinition,
 	createFindToolDefinition,
 	createGrepToolDefinition,
+	createHashlineEditToolDefinition,
 	createLocalBashOperations,
 	createLocalPowerShellOperations,
 	createLsToolDefinition,
 	createPowerShellToolDefinition,
 	createReadToolDefinition,
+	createRgGrepEngine,
 	createWriteToolDefinition,
 	DEFAULT_MAX_BYTES,
 	DEFAULT_MAX_LINES,
+	type EditMode,
 	type EditOperations,
 	type EditToolDetails,
 	type EditToolInput,
@@ -362,6 +365,10 @@ export {
 	type FindToolInput,
 	type FindToolOptions,
 	formatSize,
+	type GrepEngine,
+	type GrepEngineRequest,
+	type GrepHit,
+	type GrepMode,
 	type GrepOperations,
 	type GrepToolDetails,
 	type GrepToolInput,
@@ -408,8 +415,13 @@ export {
 	type VirtualModelStateData,
 } from "./core/virtual-models.ts";
 // Built-in extensions. The CLI loads them; SDK sessions add them to their extension factories.
+export { createApplyPatchExtension, createApplyPatchTool } from "./extensions/apply-patch/index.ts";
 export { type CodemodeExtensionOptions, createCodemodeExtension } from "./extensions/codemode/index.ts";
 export type { CodemodeStoreEntryData, CodemodeToolDetails } from "./extensions/codemode/tool.ts";
+export { createJobsExtension, type JobsExtensionOptions } from "./extensions/jobs/index.ts";
+export type { JobSnapshot, JobStatus } from "./extensions/jobs/job-registry.ts";
+export type { JobToolDetails } from "./extensions/jobs/tool.ts";
+export { createLspExtension, type LspExtensionOptions } from "./extensions/lsp/index.ts";
 export type { LoadedMcpConfig, McpExposure, McpServerConfig, McpServerEntry } from "./extensions/mcp/config.ts";
 export { createMcpExtension, type McpExtensionOptions, type McpTransportFactory } from "./extensions/mcp/index.ts";
 export { createSessionSearchExtension } from "./extensions/session-search/index.ts";

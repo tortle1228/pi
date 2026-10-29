@@ -32,6 +32,8 @@ export const SETTINGS_DEFAULTS = {
 	enableInstallTelemetry: true,
 	enableAnalytics: false,
 	enableSkillCommands: true,
+	editMode: "replace",
+	shellRedactSecrets: true,
 	terminal: {
 		showImages: true,
 		imageWidthCells: 60,
@@ -62,6 +64,9 @@ export const SETTINGS_DEFAULTS = {
 	codemode: {
 		mode: "on",
 		inlineBudget: 3000,
+	},
+	lsp: {
+		enabled: false,
 	},
 	cacheWarming: "streaming",
 	tuiMode: "fullscreen",

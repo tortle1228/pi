@@ -9,6 +9,7 @@ import { contentText, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { getCurrentSystemPrompt } from "@earendil-works/pi-ai/utils/transcript";
 import {
 	type AgentSession,
+	AuthStorage,
 	type CreateAgentSessionOptions,
 	createAgentSessionFromServices,
 	createAgentSessionServices,
@@ -54,6 +55,8 @@ export type PiCodingAgentHarnessOptions = {
 	tools?: CreateAgentSessionOptions["tools"];
 	customTools?: CreateAgentSessionOptions["customTools"];
 	workspaceFiles?: Readonly<Record<string, string>>;
+	/** Settings for the isolated agent directory, written as its `settings.json`. */
+	settings?: Readonly<Record<string, unknown>>;
 	transformSystemPrompt?: (defaultPrompt: string) => string;
 	expectedPiDocumentation?: boolean;
 };
@@ -310,12 +313,23 @@ async function runPiCodingAgent<TOutput extends JsonValue>(
 	const restoreEnvironment = applyIsolatedEnvironment(isolatedHome, agentDir);
 	try {
 		const authPath = join(hostAgentDir, "auth.json");
-		const credentials = new InMemoryCredentialStore();
 		const storedCredential = readStoredCredential(selection.provider, authPath);
-		if (storedCredential) await credentials.modify(selection.provider, async () => storedCredential);
+		// Local runs use the host auth file like the CLI, so an OAuth refresh is saved. A copy would spend the
+		// single-use refresh token and leave the host with one that no longer works. The sandbox removes the file
+		// below, so it keeps an in-memory copy.
+		let credentials: InMemoryCredentialStore | AuthStorage;
+		if (sandboxIdentity) {
+			credentials = new InMemoryCredentialStore();
+			if (storedCredential) await credentials.modify(selection.provider, async () => storedCredential);
+		} else {
+			credentials = AuthStorage.create(authPath);
+		}
 		const modelRuntime = await ModelRuntime.create({ credentials });
 		await Promise.all([mkdir(workspace), mkdir(agentDir, { recursive: true })]);
 		await seedWorkspace(workspace, options.workspaceFiles);
+		if (options.settings) {
+			await writeFile(join(agentDir, "settings.json"), JSON.stringify(options.settings), { mode: 0o600 });
+		}
 		const model = modelRuntime.getModel(selection.provider, selection.id);
 		if (!model) throw new Error(`Eval model not found: ${selection.provider}/${selection.id}`);
 		const auth = await modelRuntime.getAuth(model);
@@ -498,8 +512,6 @@ export function excludePiDocumentation(defaultPrompt: string): string {
 	if (documentationStart === -1) throw new Error("Default Pi system prompt has no Pi documentation section.");
 	const documentationEnd = defaultPrompt.indexOf(documentationEndMarker, documentationStart);
 	if (documentationEnd === -1) throw new Error("Default Pi system prompt has no complete Pi documentation section.");
-	const cwdStart = defaultPrompt.lastIndexOf("\n<cwd>\n");
-	if (cwdStart < documentationEnd) throw new Error("Default Pi system prompt has no working-directory section.");
 	return (
 		defaultPrompt.slice(0, documentationStart) + defaultPrompt.slice(documentationEnd + documentationEndMarker.length)
 	);

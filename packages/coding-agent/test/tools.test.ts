@@ -15,6 +15,7 @@ import { createEditToolDefinition } from "../src/core/tools/edit.ts";
 import { computeEditsDiff } from "../src/core/tools/edit-diff.ts";
 import { createFindToolDefinition } from "../src/core/tools/find.ts";
 import { createGrepToolDefinition } from "../src/core/tools/grep.ts";
+import type { GrepEngine, GrepEngineRequest } from "../src/core/tools/grep-engine.ts";
 import { createLsToolDefinition } from "../src/core/tools/ls.ts";
 import { createReadToolDefinition } from "../src/core/tools/read.ts";
 import { createWriteToolDefinition } from "../src/core/tools/write.ts";
@@ -854,6 +855,67 @@ describe("Coding Agent Tools", () => {
 			expect(fullOutput).toContain("2998\n2999\n3000");
 		});
 
+		describe("secret redaction", () => {
+			// Assembled at runtime so no credential-shaped literal is committed.
+			const secret = "gh" + "p_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";
+			const half = Math.floor(secret.length / 2);
+			// Emits the secret split across two chunks, then enough lines to force a temp file.
+			const operations: BashOperations = {
+				exec: async (_command, _cwd, { onData }) => {
+					onData(Buffer.from(`token ${secret.slice(0, half)}`));
+					onData(Buffer.from(`${secret.slice(half)}\n`));
+					onData(Buffer.from(`${Array.from({ length: 3000 }, (_, i) => i + 1).join("\n")}\nlast ${secret}`));
+					return { exitCode: 0 };
+				},
+			};
+
+			it("masks secrets in the model output, structured content, and the temp file", async () => {
+				const bash = createBashTool(testDir, { operations });
+				const result = await bash.execute("test-call-redact", { command: "ignored" });
+				const structured = result.structuredContent as { output: string };
+				const fullOutputPath = result.details?.fullOutputPath;
+
+				expect(getTextOutput(result)).toContain("\nlast <redacted>");
+				expect(structured.output.startsWith("token <redacted>\n1\n")).toBe(true);
+				expect(fullOutputPath).toBeDefined();
+				const fullOutput = readFileSync(fullOutputPath!, "utf-8");
+				expect(fullOutput.startsWith("token <redacted>\n1\n")).toBe(true);
+				expect(fullOutput.endsWith("\nlast <redacted>")).toBe(true);
+				for (const text of [getTextOutput(result), structured.output, fullOutput]) {
+					expect(text).not.toContain(secret.slice(4, 20));
+				}
+			});
+
+			it("masks secrets in streamed updates", async () => {
+				const updates: string[] = [];
+				const bash = createBashTool(testDir, { operations });
+				await bash.execute("test-call-redact-updates", { command: "ignored" }, undefined, (update) => {
+					updates.push(getTextOutput(update));
+				});
+				expect(updates.length).toBeGreaterThan(0);
+				for (const text of updates) expect(text).not.toContain(secret.slice(4, 20));
+			});
+
+			it("keeps the output unchanged when redaction is off", async () => {
+				const bash = createBashTool(testDir, { operations, redactSecrets: false });
+				const result = await bash.execute("test-call-redact-off", { command: "ignored" });
+				expect(getTextOutput(result)).toContain(`\nlast ${secret}`);
+			});
+
+			it("masks secrets in user bash output", async () => {
+				const chunks: string[] = [];
+				const result = await executeBashWithOperations("ignored", testDir, operations, {
+					onChunk: (chunk) => chunks.push(chunk),
+				});
+				expect(result.output).toContain("\nlast <redacted>");
+				expect(chunks.join("")).toContain("token <redacted>\n");
+				expect(chunks.join("")).not.toContain(secret.slice(4, 20));
+
+				const plain = await executeBashWithOperations("ignored", testDir, operations, { redactSecrets: false });
+				expect(plain.output).toContain(`\nlast ${secret}`);
+			});
+		});
+
 		it("executeBash should persist full output when truncation happens by line count only", async () => {
 			const result = await executeBashWithOperations("seq 3000", process.cwd(), createLocalBashOperations());
 			const fullOutputPath = result.fullOutputPath;
@@ -903,9 +965,150 @@ describe("Coding Agent Tools", () => {
 			expect(output).toContain("context.txt-1- before");
 			expect(output).toContain("context.txt:2: match one");
 			expect(output).toContain("context.txt-3- after");
-			expect(output).toContain("[1 matches limit reached. Use limit=2 for more, or refine pattern]");
+			expect(output).toContain("[1 matches limit reached. Use skip=1 for more, or refine pattern]");
 			// Ensure second match is not present
 			expect(output).not.toContain("match two");
+			expect(result.details).toMatchObject({ matchLimitReached: 1, nextSkip: 1 });
+		});
+
+		it("should page through matches with skip", async () => {
+			const testFile = join(testDir, "pages.txt");
+			writeFileSync(testFile, ["match one", "match two", "match three"].join("\n"));
+
+			const second = await grepTool.execute("test-call-skip", {
+				pattern: "match",
+				path: testFile,
+				limit: 1,
+				skip: 1,
+			});
+			expect(getTextOutput(second)).toContain("pages.txt:2: match two");
+			expect(getTextOutput(second)).not.toContain("match one");
+			expect(second.details).toMatchObject({ matchLimitReached: 1, nextSkip: 2 });
+
+			const last = await grepTool.execute("test-call-skip-last", {
+				pattern: "match",
+				path: testFile,
+				limit: 1,
+				skip: 2,
+			});
+			expect(getTextOutput(last)).toBe("pages.txt:3: match three");
+			expect(last.details).toBeUndefined();
+
+			const past = await grepTool.execute("test-call-skip-past", { pattern: "match", path: testFile, skip: 5 });
+			expect(getTextOutput(past)).toBe("No results after skip=5 (3 matches in total)");
+		});
+
+		it("should not report a limit when the matches fit exactly", async () => {
+			const testFile = join(testDir, "exact.txt");
+			writeFileSync(testFile, "match one\nmatch two\n");
+
+			const result = await grepTool.execute("test-call-exact", { pattern: "match", path: testFile, limit: 2 });
+			expect(getTextOutput(result)).toBe("exact.txt:1: match one\nexact.txt:2: match two");
+			expect(result.details).toBeUndefined();
+		});
+
+		it("should list matching files sorted by path in files mode", async () => {
+			writeFileSync(join(testDir, "b.txt"), "needle\nneedle\n");
+			writeFileSync(join(testDir, "a.txt"), "needle\n");
+			writeFileSync(join(testDir, "c.txt"), "other\n");
+
+			const result = await grepTool.execute("test-call-files", { pattern: "needle", path: testDir, mode: "files" });
+			expect(getTextOutput(result)).toBe("a.txt\nb.txt");
+
+			const page = await grepTool.execute("test-call-files-page", {
+				pattern: "needle",
+				path: testDir,
+				mode: "files",
+				limit: 1,
+			});
+			expect(getTextOutput(page)).toBe("a.txt\n\n[1 files limit reached. Use skip=1 for more, or refine pattern]");
+			expect(page.details).toMatchObject({ fileLimitReached: 1, nextSkip: 1 });
+		});
+
+		it("should count matches per file in count mode", async () => {
+			writeFileSync(join(testDir, "a.txt"), "needle needle\nneedle\n");
+			writeFileSync(join(testDir, "b.txt"), "needle\n");
+			writeFileSync(join(testDir, "c.txt"), "other\n");
+
+			const result = await grepTool.execute("test-call-count", { pattern: "needle", path: testDir, mode: "count" });
+			expect(getTextOutput(result)).toBe("a.txt:3\nb.txt:1");
+		});
+
+		it("should search several paths and globs relative to the working directory", async () => {
+			mkdirSync(join(testDir, "src"));
+			mkdirSync(join(testDir, "lib"));
+			mkdirSync(join(testDir, "docs"));
+			writeFileSync(join(testDir, "src", "index.ts"), "needle\n");
+			writeFileSync(join(testDir, "src", "index.test.ts"), "needle\n");
+			writeFileSync(join(testDir, "lib", "index.ts"), "needle\n");
+			writeFileSync(join(testDir, "lib", "notes.md"), "needle\n");
+			writeFileSync(join(testDir, "docs", "index.ts"), "needle\n");
+
+			const result = await createGrepTool(testDir).execute("test-call-multi-path", {
+				pattern: "needle",
+				path: ["src", "lib"],
+				glob: ["*.ts", "!*.test.ts"],
+				mode: "files",
+			});
+			expect(getTextOutput(result)).toBe("src/index.ts\nlib/index.ts");
+		});
+
+		it("should page and format the hits of a custom engine", async () => {
+			const requests: GrepEngineRequest[] = [];
+			const engine: GrepEngine = {
+				search: async (request) => {
+					requests.push(request);
+					return [
+						{ type: "match", filePath: join(testDir, "a.ts"), lineNumber: 1, lineText: "one\n" },
+						{ type: "match", filePath: join(testDir, "a.ts"), lineNumber: 4, lineText: "two\nthree\n" },
+						{ type: "match", filePath: join(testDir, "b.ts"), lineNumber: 2, lineText: "four\n" },
+					];
+				},
+			};
+
+			const result = await createGrepTool(testDir, { engine }).execute("test-call-engine", {
+				pattern: "x",
+				glob: "*.ts",
+				limit: 1,
+				skip: 1,
+			});
+			expect(requests).toEqual([
+				{
+					pattern: "x",
+					paths: [testDir],
+					globs: ["*.ts"],
+					ignoreCase: false,
+					literal: false,
+					multiline: false,
+					mode: "content",
+					maxHits: 3,
+				},
+			]);
+			expect(getTextOutput(result)).toBe(
+				"a.ts:4: two\na.ts:5: three\n\n[1 matches limit reached. Use skip=2 for more, or refine pattern]",
+			);
+		});
+
+		it("should number every line of a multiline match", async () => {
+			const testFile = join(testDir, "multi.txt");
+			writeFileSync(testFile, "start\nfunction a() {\n  return 1;\n}\nend\n");
+
+			const result = await grepTool.execute("test-call-multiline", {
+				pattern: "function a\\(\\) \\{\\n  return",
+				path: testFile,
+				multiline: true,
+			});
+			expect(getTextOutput(result)).toBe("multi.txt:2: function a() {\nmulti.txt:3:   return 1;");
+
+			const withContext = await grepTool.execute("test-call-multiline-context", {
+				pattern: "function a\\(\\) \\{\\n  return",
+				path: testFile,
+				multiline: true,
+				context: 1,
+			});
+			expect(getTextOutput(withContext)).toBe(
+				"multi.txt-1- start\nmulti.txt:2: function a() {\nmulti.txt:3:   return 1;\nmulti.txt-4- }",
+			);
 		});
 
 		// https://github.com/earendil-works/pi/issues/11398

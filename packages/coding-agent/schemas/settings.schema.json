@@ -270,6 +270,11 @@
       "type": "string",
       "description": "Prefix prepended to every bash command, for example to enable shell aliases."
     },
+    "shellRedactSecrets": {
+      "type": "boolean",
+      "description": "Mask API keys, tokens, and private keys in shell command output before it is shown, saved, or sent to the model.",
+      "default": true
+    },
     "npmCommand": {
       "type": "array",
       "items": {
@@ -500,6 +505,20 @@
       },
       "description": "Initial tool selection. Plain names replace the inherited selection; +name and -name entries add or remove tools."
     },
+    "editMode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "replace"
+        },
+        {
+          "type": "string",
+          "const": "hashline"
+        }
+      ],
+      "description": "How the edit tool addresses text. \"replace\": by exact old text. \"hashline\": by the line tags that read and grep then show, such as 12#kq.",
+      "default": "replace"
+    },
     "doubleEscapeAction": {
       "anyOf": [
         {
@@ -667,6 +686,48 @@
           "minimum": 0,
           "description": "Estimated tokens available for inline codemode tool declarations.",
           "default": 3000
+        }
+      }
+    },
+    "lsp": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Append language server diagnostics to the results of the edit and write tools.",
+          "default": false
+        },
+        "servers": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Command and arguments that start the server on stdio, such as [\"typescript-language-server\", \"--stdio\"]."
+                },
+                "extensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "File extensions the server checks, such as [\".ts\", \".tsx\"]."
+                },
+                "initializationOptions": {
+                  "description": "Server-specific options sent with the initialize request."
+                },
+                "disabled": {
+                  "type": "boolean",
+                  "description": "Turn off a built-in server."
+                }
+              }
+            }
+          },
+          "description": "Language servers by name. A built-in name (typescript, pyright, rust-analyzer, gopls) changes or disables that server; another name adds one."
         }
       }
     },

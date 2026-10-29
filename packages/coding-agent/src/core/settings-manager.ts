@@ -26,6 +26,7 @@ import type {
 	TuiMode,
 	WarningSettings,
 } from "./settings-schema.ts";
+import type { EditMode } from "./tools/index.ts";
 
 export type {
 	BranchSummarySettings,
@@ -1055,6 +1056,10 @@ export class SettingsManager {
 		return this.settings.shellCommandPrefix;
 	}
 
+	getShellRedactSecrets(): boolean {
+		return this.settings.shellRedactSecrets ?? SETTINGS_DEFAULTS.shellRedactSecrets;
+	}
+
 	setShellCommandPrefix(prefix: string | undefined): void {
 		this.globalSettings.shellCommandPrefix = prefix;
 		this.markModified("shellCommandPrefix");
@@ -1344,6 +1349,10 @@ export class SettingsManager {
 			lines === "auto" ? lines : Math.max(1, Math.min(100, Math.floor(lines)));
 		this.markModified("fullscreenWheelScrollLines");
 		this.save();
+	}
+
+	getEditMode(): EditMode {
+		return this.settings.editMode === "hashline" ? "hashline" : SETTINGS_DEFAULTS.editMode;
 	}
 
 	getImageAutoResize(): boolean {

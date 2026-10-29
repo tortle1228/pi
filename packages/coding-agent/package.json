@@ -38,6 +38,7 @@
 		"test": "vitest --run",
 		"generate:schemas": "node --import ./src/experimental/source-resolver.ts scripts/generate-schemas.ts",
 		"generate:references": "node --import ./src/experimental/source-resolver.ts scripts/generate-references.ts",
+		"build:native-grep": "node scripts/build-native-grep.ts",
 		"prepublishOnly": "npm run clean && npm run build"
 	},
 	"dependencies": {
