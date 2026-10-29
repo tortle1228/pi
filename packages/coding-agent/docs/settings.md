@@ -153,6 +153,7 @@ Keep `retry.provider.maxRetries` at `0` unless provider-level retries are requir
 |---|---|---|---|
 | `shellPath` | string | Platform default | Custom shell executable path. Supports a leading `~`. |
 | `shellCommandPrefix` | string | None | Prefix prepended to every shell command. |
+| `shellRedactSecrets` | boolean | `true` | Replace credentials in the output of the `bash` and `powershell` tools and `!` commands with `<redacted>` before the output is shown, written to a temp file, or sent to the model. Matches vendor token shapes (for example `sk-`, `ghp_`, `AKIA`, `xoxb-`), JWTs, `Bearer` tokens, passwords in URLs, and PEM private keys. Output that may still become a credential, such as a trailing `ghp` or `Bearer `, appears once it is complete. |
 | `npmCommand` | `string[]` | `npm` | Command and arguments used for npm package lookup and installation. |
 
 See [Shell aliases](shell-aliases.md) for shell setup and [Pi Packages](packages.md) for package-manager behavior.

@@ -16,6 +16,7 @@ import {
 import type { ExtensionContext, ToolDefinition } from "../extensions/types.ts";
 import { OutputAccumulator } from "./output-accumulator.ts";
 import { BASH_UPDATE_THROTTLE_MS, createShellRenderers } from "./renderers/bash.ts";
+import { SecretOutputRedactor } from "./secret-output-redactor.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type TruncationResult } from "./truncate.ts";
 
@@ -222,6 +223,11 @@ export interface BashToolOptions {
 	exposeSessionEnvironment?: boolean;
 	/** Hook to adjust command, cwd, or env before execution */
 	spawnHook?: BashSpawnHook;
+	/**
+	 * Mask credentials such as API keys, tokens, and private keys in the output before it is stored, displayed, or
+	 * returned. A trailing piece that may still become a credential is held until it is complete. Default: true
+	 */
+	redactSecrets?: boolean;
 }
 
 export type BashRenderState = {
@@ -249,6 +255,7 @@ export function createShellToolDefinition(
 	const commandPrefix = options?.commandPrefix;
 	const exposeSessionEnvironment = options?.exposeSessionEnvironment ?? true;
 	const spawnHook = options?.spawnHook;
+	const redactSecrets = options?.redactSecrets ?? true;
 	return {
 		name: config.name,
 		label: config.label,
@@ -274,6 +281,10 @@ export function createShellToolDefinition(
 				ctx,
 			);
 			const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix });
+			// Redaction runs before the accumulator, so neither the temp file nor streamed updates see a credential.
+			const redaction = redactSecrets
+				? { redactor: new SecretOutputRedactor(), decoder: new TextDecoder() }
+				: undefined;
 			let acceptingOutput = true;
 			let updateTimer: NodeJS.Timeout | undefined;
 			let updateDirty = false;
@@ -321,12 +332,22 @@ export function createShellToolDefinition(
 
 			const handleData = (data: Buffer) => {
 				if (!acceptingOutput) return;
-				output.append(data);
+				if (redaction) {
+					const text = redaction.redactor.push(redaction.decoder.decode(data, { stream: true }));
+					if (!text) return;
+					output.append(Buffer.from(text, "utf-8"));
+				} else {
+					output.append(data);
+				}
 				scheduleOutputUpdate();
 			};
 
 			const finishOutput = async () => {
 				acceptingOutput = false;
+				if (redaction) {
+					const rest = redaction.redactor.push(redaction.decoder.decode()) + redaction.redactor.finish();
+					if (rest) output.append(Buffer.from(rest, "utf-8"));
+				}
 				output.finish();
 				clearUpdateTimer();
 				emitOutputUpdate();

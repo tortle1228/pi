@@ -11,6 +11,7 @@ import { splitIncompleteAnsiSuffix, stripAnsi } from "../utils/ansi.ts";
 import { createOutputFileStream } from "../utils/output-files.ts";
 import { sanitizeBinaryOutput } from "../utils/shell.ts";
 import type { BashOperations } from "./tools/bash.ts";
+import { SecretOutputRedactor } from "./tools/secret-output-redactor.ts";
 import { DEFAULT_MAX_BYTES, truncateTail } from "./tools/truncate.ts";
 
 // ============================================================================
@@ -22,6 +23,8 @@ export interface BashExecutorOptions {
 	onChunk?: (chunk: string) => void;
 	/** AbortSignal for cancellation */
 	signal?: AbortSignal;
+	/** Mask credentials in the output before it is streamed, stored, or returned. Default: true */
+	redactSecrets?: boolean;
 }
 
 export interface BashResult {
@@ -70,6 +73,7 @@ export async function executeBashWithOperations(
 	};
 
 	const decoder = new TextDecoder();
+	const redactor = (options?.redactSecrets ?? true) ? new SecretOutputRedactor() : undefined;
 	// Unfinished escape sequence at the end of the previous chunk, completed by the next chunk.
 	let pendingAnsi = "";
 
@@ -105,13 +109,16 @@ export async function executeBashWithOperations(
 
 	const onData = (data: Buffer) => {
 		totalBytes += data.length;
-		const { complete, pending } = splitIncompleteAnsiSuffix(pendingAnsi + decoder.decode(data, { stream: true }));
+		const decoded = decoder.decode(data, { stream: true });
+		const text = redactor ? redactor.push(decoded) : decoded;
+		const { complete, pending } = splitIncompleteAnsiSuffix(pendingAnsi + text);
 		pendingAnsi = pending;
 		appendText(complete);
 	};
 
 	const flushOutput = () => {
-		const rest = pendingAnsi + decoder.decode();
+		const decoded = decoder.decode();
+		const rest = pendingAnsi + (redactor ? redactor.push(decoded) + redactor.finish() : decoded);
 		pendingAnsi = "";
 		appendText(rest);
 	};

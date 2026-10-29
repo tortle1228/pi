@@ -270,6 +270,11 @@
       "type": "string",
       "description": "Prefix prepended to every bash command, for example to enable shell aliases."
     },
+    "shellRedactSecrets": {
+      "type": "boolean",
+      "description": "Mask API keys, tokens, and private keys in shell command output before it is shown, saved, or sent to the model.",
+      "default": true
+    },
     "npmCommand": {
       "type": "array",
       "items": {

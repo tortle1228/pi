@@ -307,6 +307,13 @@ export const SettingsSchema = Type.Object(
 		shellCommandPrefix: Type.Optional(
 			Type.String({ description: "Prefix prepended to every bash command, for example to enable shell aliases." }),
 		),
+		shellRedactSecrets: Type.Optional(
+			Type.Boolean({
+				description:
+					"Mask API keys, tokens, and private keys in shell command output before it is shown, saved, or sent to the model.",
+				default: SETTINGS_DEFAULTS.shellRedactSecrets,
+			}),
+		),
 		npmCommand: Type.Optional(
 			Type.Array(Type.String(), {
 				description:

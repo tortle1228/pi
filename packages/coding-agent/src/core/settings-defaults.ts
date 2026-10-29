@@ -33,6 +33,7 @@ export const SETTINGS_DEFAULTS = {
 	enableAnalytics: false,
 	enableSkillCommands: true,
 	editMode: "replace",
+	shellRedactSecrets: true,
 	terminal: {
 		showImages: true,
 		imageWidthCells: 60,

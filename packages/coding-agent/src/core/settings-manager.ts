@@ -1056,6 +1056,10 @@ export class SettingsManager {
 		return this.settings.shellCommandPrefix;
 	}
 
+	getShellRedactSecrets(): boolean {
+		return this.settings.shellRedactSecrets ?? SETTINGS_DEFAULTS.shellRedactSecrets;
+	}
+
 	setShellCommandPrefix(prefix: string | undefined): void {
 		this.globalSettings.shellCommandPrefix = prefix;
 		this.markModified("shellCommandPrefix");

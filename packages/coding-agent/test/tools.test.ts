@@ -855,6 +855,67 @@ describe("Coding Agent Tools", () => {
 			expect(fullOutput).toContain("2998\n2999\n3000");
 		});
 
+		describe("secret redaction", () => {
+			// Assembled at runtime so no credential-shaped literal is committed.
+			const secret = "gh" + "p_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";
+			const half = Math.floor(secret.length / 2);
+			// Emits the secret split across two chunks, then enough lines to force a temp file.
+			const operations: BashOperations = {
+				exec: async (_command, _cwd, { onData }) => {
+					onData(Buffer.from(`token ${secret.slice(0, half)}`));
+					onData(Buffer.from(`${secret.slice(half)}\n`));
+					onData(Buffer.from(`${Array.from({ length: 3000 }, (_, i) => i + 1).join("\n")}\nlast ${secret}`));
+					return { exitCode: 0 };
+				},
+			};
+
+			it("masks secrets in the model output, structured content, and the temp file", async () => {
+				const bash = createBashTool(testDir, { operations });
+				const result = await bash.execute("test-call-redact", { command: "ignored" });
+				const structured = result.structuredContent as { output: string };
+				const fullOutputPath = result.details?.fullOutputPath;
+
+				expect(getTextOutput(result)).toContain("\nlast <redacted>");
+				expect(structured.output.startsWith("token <redacted>\n1\n")).toBe(true);
+				expect(fullOutputPath).toBeDefined();
+				const fullOutput = readFileSync(fullOutputPath!, "utf-8");
+				expect(fullOutput.startsWith("token <redacted>\n1\n")).toBe(true);
+				expect(fullOutput.endsWith("\nlast <redacted>")).toBe(true);
+				for (const text of [getTextOutput(result), structured.output, fullOutput]) {
+					expect(text).not.toContain(secret.slice(4, 20));
+				}
+			});
+
+			it("masks secrets in streamed updates", async () => {
+				const updates: string[] = [];
+				const bash = createBashTool(testDir, { operations });
+				await bash.execute("test-call-redact-updates", { command: "ignored" }, undefined, (update) => {
+					updates.push(getTextOutput(update));
+				});
+				expect(updates.length).toBeGreaterThan(0);
+				for (const text of updates) expect(text).not.toContain(secret.slice(4, 20));
+			});
+
+			it("keeps the output unchanged when redaction is off", async () => {
+				const bash = createBashTool(testDir, { operations, redactSecrets: false });
+				const result = await bash.execute("test-call-redact-off", { command: "ignored" });
+				expect(getTextOutput(result)).toContain(`\nlast ${secret}`);
+			});
+
+			it("masks secrets in user bash output", async () => {
+				const chunks: string[] = [];
+				const result = await executeBashWithOperations("ignored", testDir, operations, {
+					onChunk: (chunk) => chunks.push(chunk),
+				});
+				expect(result.output).toContain("\nlast <redacted>");
+				expect(chunks.join("")).toContain("token <redacted>\n");
+				expect(chunks.join("")).not.toContain(secret.slice(4, 20));
+
+				const plain = await executeBashWithOperations("ignored", testDir, operations, { redactSecrets: false });
+				expect(plain.output).toContain(`\nlast ${secret}`);
+			});
+		});
+
 		it("executeBash should persist full output when truncation happens by line count only", async () => {
 			const result = await executeBashWithOperations("seq 3000", process.cwd(), createLocalBashOperations());
 			const fullOutputPath = result.fullOutputPath;

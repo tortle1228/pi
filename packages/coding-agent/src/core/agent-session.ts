@@ -3757,6 +3757,7 @@ export class AgentSession {
 		const autoResizeImages = this.settingsManager.getImageAutoResize();
 		const shellCommandPrefix = this.settingsManager.getShellCommandPrefix();
 		const shellPath = this.settingsManager.getShellPath();
+		const redactSecrets = this.settingsManager.getShellRedactSecrets();
 		const baseToolDefinitions = this._baseToolsOverride
 			? Object.fromEntries(
 					Object.entries(this._baseToolsOverride).map(([name, tool]) => [
@@ -3766,7 +3767,8 @@ export class AgentSession {
 				)
 			: createAllToolDefinitions(this._cwd, {
 					read: { autoResizeImages },
-					bash: { commandPrefix: shellCommandPrefix, shellPath },
+					bash: { commandPrefix: shellCommandPrefix, shellPath, redactSecrets },
+					powershell: { redactSecrets },
 					editMode: this.settingsManager.getEditMode(),
 				});
 
@@ -4009,6 +4011,7 @@ export class AgentSession {
 						this._emit({ type: "bash_execution_update", id: options?.id, delta });
 					},
 					signal: abortController.signal,
+					redactSecrets: this.settingsManager.getShellRedactSecrets(),
 				},
 			);
 
