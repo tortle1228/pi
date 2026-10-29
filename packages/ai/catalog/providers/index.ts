@@ -13,6 +13,7 @@ import deepseek from "./deepseek.ts";
 import fireworks from "./fireworks.ts";
 import githubCopilot from "./github-copilot.ts";
 import google from "./google.ts";
+import googleAntigravity from "./google-antigravity.ts";
 import googleVertex from "./google-vertex.ts";
 import groq from "./groq.ts";
 import huggingface from "./huggingface.ts";
@@ -57,6 +58,7 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
 	fireworks,
 	githubCopilot,
 	googleVertex,
+	googleAntigravity,
 	google,
 	groq,
 	huggingface,

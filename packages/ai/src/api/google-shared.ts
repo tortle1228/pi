@@ -1,5 +1,6 @@
 /**
- * Shared utilities for Google Generative AI and Google Vertex providers.
+ * Shared utilities for Google Generative AI, Google Vertex, and Google
+ * Antigravity providers.
  */
 
 import {
@@ -17,6 +18,7 @@ import type {
 	StopReason,
 	StreamOptions,
 	TextContent,
+	ThinkingBudgets,
 	ThinkingLevel,
 	Tool,
 	TranscriptContext,
@@ -27,7 +29,7 @@ import { collapseSystemMessages, withoutInitialSystemMessage } from "../utils/tr
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.ts";
 import { transformMessages } from "./transform-messages.ts";
 
-type GoogleApiType = "google-generative-ai" | "google-vertex";
+type GoogleApiType = "google-generative-ai" | "google-vertex" | "google-antigravity";
 
 /**
  * Thinking level for Gemini 3 models.
@@ -81,6 +83,21 @@ export function usesGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>
 		id === "gemini-flash-lite-latest" ||
 		// Match both hosted Gemma 4 naming forms: gemma-4-* and gemma4-*.
 		/gemma-?4/.test(id)
+	);
+}
+
+/** Token budget used by models that take `thinkingBudget` instead of `thinkingLevel`. */
+export function googleThinkingBudget(level: ResolvedGoogleThinkingLevel, customBudgets?: ThinkingBudgets): number {
+	return (
+		customBudgets?.[level] ??
+		(
+			{
+				minimal: 1024,
+				low: 2048,
+				medium: 8192,
+				high: 16384,
+			} satisfies Record<ResolvedGoogleThinkingLevel, number>
+		)[level]
 	);
 }
 

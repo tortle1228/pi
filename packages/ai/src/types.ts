@@ -71,6 +71,7 @@ export type KnownApi =
 	| "bedrock-converse-stream"
 	| "google-generative-ai"
 	| "google-vertex"
+	| "google-antigravity"
 	| "pi-messages";
 
 export type Api = KnownApi | (string & {});
@@ -93,6 +94,7 @@ export type KnownProvider =
 	| "anthropic"
 	| "google"
 	| "google-vertex"
+	| "google-antigravity"
 	| "openai"
 	| "azure"
 	| "openai-codex"

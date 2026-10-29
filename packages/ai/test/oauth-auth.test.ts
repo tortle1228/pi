@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryCredentialStore } from "../src/auth/credential-store.ts";
 import { anthropicOAuth } from "../src/auth/oauth/anthropic.ts";
 import { githubCopilotOAuth } from "../src/auth/oauth/github-copilot.ts";
+import { googleAntigravityOAuth } from "../src/auth/oauth/google-antigravity.ts";
 import { kimiCodingOAuth } from "../src/auth/oauth/kimi-coding.ts";
 import { openaiChatGPTOAuth } from "../src/auth/oauth/openai-chatgpt.ts";
 import { openaiCodexOAuth } from "../src/auth/oauth/openai-codex.ts";
@@ -11,6 +12,7 @@ import { createModels } from "../src/models.ts";
 import * as extensionOAuthCompatibility from "../src/oauth.ts";
 import { anthropicProvider } from "../src/providers/anthropic.ts";
 import { githubCopilotProvider } from "../src/providers/github-copilot.ts";
+import { googleAntigravityProvider } from "../src/providers/google-antigravity.ts";
 import { openaiProvider } from "../src/providers/openai.ts";
 
 const neverAbortedSignal = new AbortController().signal;
@@ -35,6 +37,7 @@ describe.sequential("OAuthAuth adapters", () => {
 			openaiChatGPTOAuth,
 			openaiCodexOAuth,
 			githubCopilotOAuth,
+			googleAntigravityOAuth,
 			kimiCodingOAuth,
 			xaiOAuth,
 		]) {
@@ -61,6 +64,16 @@ describe.sequential("OAuthAuth adapters", () => {
 	it("openai-codex toAuth derives the api key from the access token", async () => {
 		const auth = await openaiCodexOAuth.toAuth({ type: "oauth", access: "token", refresh: "r", expires: 0 });
 		expect(auth).toEqual({ apiKey: "token" });
+	});
+
+	it("Antigravity exposes only subscription OAuth", () => {
+		const provider = googleAntigravityProvider();
+		expect(provider.auth.apiKey).toBeUndefined();
+		expect(provider.auth.oauth).toMatchObject({
+			name: "Antigravity (Google subscription)",
+			isSubscription: true,
+			loginLabel: "Sign in with Antigravity",
+		});
 	});
 
 	it("openrouter derives the api key and keeps the permanent credential on refresh", async () => {

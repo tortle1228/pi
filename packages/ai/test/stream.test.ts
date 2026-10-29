@@ -23,8 +23,9 @@ const oauthTokens = await Promise.all([
 	resolveApiKey("anthropic"),
 	resolveApiKey("github-copilot"),
 	resolveApiKey("openai-codex"),
+	resolveApiKey("google-antigravity"),
 ]);
-const [anthropicOAuthToken, githubCopilotToken, openaiCodexToken] = oauthTokens;
+const [anthropicOAuthToken, githubCopilotToken, openaiCodexToken, antigravityToken] = oauthTokens;
 
 // Calculator tool definition (same as examples)
 // Note: Using StringEnum helper because Google's API doesn't support anyOf/const patterns
@@ -418,6 +419,35 @@ describe("Generate E2E Tests", () => {
 
 		it.skipIf(!isVertexConfigured)("should handle image input", { retry: 3 }, async () => {
 			await handleImage(llm, vertexOptions);
+		});
+	});
+
+	describe.skipIf(!antigravityToken)("Antigravity Provider (gemini-3.8-flash-high)", () => {
+		const llm = getModel("google-antigravity", "gemini-3.8-flash-high");
+		const antigravityOptions = { apiKey: antigravityToken! };
+
+		it("should complete basic text generation", { retry: 3 }, async () => {
+			await basicTextGeneration(llm, antigravityOptions);
+		});
+
+		it("should handle tool calling", { retry: 3 }, async () => {
+			await handleToolCall(llm, antigravityOptions);
+		});
+
+		it("should handle thinking", { retry: 3 }, async () => {
+			await handleThinking(llm, { ...antigravityOptions, thinking: { enabled: true, level: "HIGH" } });
+		});
+
+		it("should handle streaming", { retry: 3 }, async () => {
+			await handleStreaming(llm, antigravityOptions);
+		});
+
+		it("should handle multi-turn with thinking and tools", { retry: 3 }, async () => {
+			await multiTurn(llm, { ...antigravityOptions, thinking: { enabled: true, level: "HIGH" } });
+		});
+
+		it("should handle image input", { retry: 3 }, async () => {
+			await handleImage(llm, antigravityOptions);
 		});
 	});
 

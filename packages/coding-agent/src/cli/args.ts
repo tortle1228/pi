@@ -465,6 +465,7 @@ ${chalk.bold("Environment Variables:")}
   PI_OFFLINE                       - Disable startup network operations when set to 1/true/yes
   PI_TELEMETRY                     - Override install telemetry when set to 1/true/yes or 0/false/no
   PI_SHARE_VIEWER_URL              - Base URL for /share command (default: https://pi.dev/session/)
+  PI_AI_ANTIGRAVITY_VERSION        - Override Antigravity Hub version (e.g., 2.24.0)
 
 ${chalk.bold("Built-in Tool Names:")}
   read       - Read file contents
