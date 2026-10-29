@@ -106,6 +106,8 @@ export interface EditResultRecord {
 	failedEdits?: number;
 	writeCalls?: number;
 	inputTokens?: number;
+	/** Input tokens served from the provider's prompt cache; providers count them apart from `inputTokens`. */
+	cacheReadTokens?: number;
 	outputTokens?: number;
 }
 
@@ -123,6 +125,7 @@ export interface EditResultSummary {
 	failedEditRate: number;
 	/** Share of runs that used write, which bypasses the edit format. */
 	writeRate: number;
+	/** Input tokens per run, including cached ones. */
 	inputTokens: number;
 	outputTokens: number;
 }
@@ -155,7 +158,7 @@ export function summarizeEditResults(records: readonly EditResultRecord[]): Edit
 					editCalls === 0 ? 0 : graded.reduce((sum, record) => sum + (record.failedEdits ?? 0), 0) / editCalls,
 				writeRate:
 					graded.length === 0 ? 0 : graded.filter((record) => (record.writeCalls ?? 0) > 0).length / graded.length,
-				inputTokens: mean(graded.map((record) => record.inputTokens ?? 0)),
+				inputTokens: mean(graded.map((record) => (record.inputTokens ?? 0) + (record.cacheReadTokens ?? 0))),
 				outputTokens: mean(graded.map((record) => record.outputTokens ?? 0)),
 			};
 		})

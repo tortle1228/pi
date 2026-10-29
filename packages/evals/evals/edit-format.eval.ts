@@ -51,7 +51,9 @@ function registerTask(task: EditTask): void {
 		// apply_patch replaces both edit and write, as in Codex; the other formats keep write as a fallback.
 		tools: format === "apply_patch" ? ["read", "apply_patch"] : ["read", "edit", "write"],
 		customTools: format === "apply_patch" ? [createApplyPatchTool()] : undefined,
-		settings: { editMode: format === "apply_patch" ? "replace" : format },
+		// The Pi documentation section is irrelevant to editing, and with it Anthropic bills subscription requests as
+		// third-party extra usage.
+		settings: { editMode: format === "apply_patch" ? "replace" : format, prompt: { piDocs: false } },
 		workspaceFiles: { [task.fileName]: task.input },
 		output: async ({ session }) => {
 			const path = join(session.sessionManager.getCwd(), task.fileName);
@@ -74,6 +76,7 @@ function registerTask(task: EditTask): void {
 				writeCalls: calls.filter((call) => call.name === "write").length,
 				toolCalls: calls.length,
 				inputTokens: stats.tokens.input,
+				cacheReadTokens: stats.tokens.cacheRead,
 				outputTokens: stats.tokens.output,
 			};
 		},

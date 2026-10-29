@@ -80,7 +80,14 @@ describe("summarizeEditResults", () => {
 		const [summary] = summarizeEditResults([
 			record({ task: "t1", exact: false, normalized: false }),
 			record({ task: "t1", editCalls: 2, failedEdits: 1 }),
-			record({ task: "t2", exact: false, normalized: true, writeCalls: 1, inputTokens: 3000 }),
+			record({
+				task: "t2",
+				exact: false,
+				normalized: true,
+				writeCalls: 1,
+				inputTokens: 2000,
+				cacheReadTokens: 1000,
+			}),
 			{
 				provider: "anthropic",
 				id: "claude-sonnet-5-5",

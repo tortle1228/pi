@@ -9,6 +9,7 @@ import { contentText, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { getCurrentSystemPrompt } from "@earendil-works/pi-ai/utils/transcript";
 import {
 	type AgentSession,
+	AuthStorage,
 	type CreateAgentSessionOptions,
 	createAgentSessionFromServices,
 	createAgentSessionServices,
@@ -312,9 +313,17 @@ async function runPiCodingAgent<TOutput extends JsonValue>(
 	const restoreEnvironment = applyIsolatedEnvironment(isolatedHome, agentDir);
 	try {
 		const authPath = join(hostAgentDir, "auth.json");
-		const credentials = new InMemoryCredentialStore();
 		const storedCredential = readStoredCredential(selection.provider, authPath);
-		if (storedCredential) await credentials.modify(selection.provider, async () => storedCredential);
+		// Local runs use the host auth file like the CLI, so an OAuth refresh is saved. A copy would spend the
+		// single-use refresh token and leave the host with one that no longer works. The sandbox removes the file
+		// below, so it keeps an in-memory copy.
+		let credentials: InMemoryCredentialStore | AuthStorage;
+		if (sandboxIdentity) {
+			credentials = new InMemoryCredentialStore();
+			if (storedCredential) await credentials.modify(selection.provider, async () => storedCredential);
+		} else {
+			credentials = AuthStorage.create(authPath);
+		}
 		const modelRuntime = await ModelRuntime.create({ credentials });
 		await Promise.all([mkdir(workspace), mkdir(agentDir, { recursive: true })]);
 		await seedWorkspace(workspace, options.workspaceFiles);
