@@ -5,6 +5,7 @@
 
 import type { WriteStream } from "node:fs";
 import type { BashOperations } from "../../core/tools/bash.ts";
+import { SecretOutputRedactor } from "../../core/tools/secret-output-redactor.ts";
 import { truncateTail } from "../../core/tools/truncate.ts";
 import { createOutputFileStream } from "../../utils/output-files.ts";
 
@@ -61,12 +62,15 @@ export type JobEndListener = (job: JobSnapshot) => void;
 export class JobRegistry {
 	private readonly operations: BashOperations;
 	private readonly onEnd: JobEndListener | undefined;
+	private readonly shouldRedact: (() => boolean) | undefined;
 	private readonly jobs = new Map<string, Job>();
 	private nextId = 1;
 
-	constructor(operations: BashOperations, onEnd?: JobEndListener) {
+	/** `shouldRedact` is asked once per job whether to mask credentials in its output, as `shellRedactSecrets` does. */
+	constructor(operations: BashOperations, onEnd?: JobEndListener, shouldRedact?: () => boolean) {
 		this.operations = operations;
 		this.onEnd = onEnd;
+		this.shouldRedact = shouldRedact;
 	}
 
 	/** Starts `command` in `cwd` and returns at once. `commandPrefix` runs first, as for the bash tool. */
@@ -86,9 +90,16 @@ export class JobRegistry {
 			waitingReads: 0,
 			done: Promise.resolve(),
 		};
+		// Redaction runs before the log and the unread buffer, so neither ever holds a credential.
+		const redactor = this.shouldRedact?.() ? new SecretOutputRedactor() : undefined;
+		const append = (text: string) => {
+			if (redactor) job.log.stream.write(text);
+			this.appendUnread(job, text);
+		};
 		const onData = (data: Buffer) => {
-			job.log.stream.write(data);
-			this.appendUnread(job, job.decoder.decode(data, { stream: true }));
+			if (!redactor) job.log.stream.write(data);
+			const text = job.decoder.decode(data, { stream: true });
+			append(redactor ? redactor.push(text) : text);
 		};
 		const script = commandPrefix ? `${commandPrefix}\n${command}` : command;
 		job.done = this.operations
@@ -102,7 +113,8 @@ export class JobRegistry {
 						: { state: "failed", error: error instanceof Error ? error.message : String(error) },
 			)
 			.then((status) => {
-				this.appendUnread(job, job.decoder.decode());
+				const rest = job.decoder.decode();
+				append(redactor ? redactor.push(rest) + redactor.finish() : rest);
 				job.status = status;
 				job.endedAt = Date.now();
 				if (status.state !== "cancelled" && job.waitingReads === 0) this.onEnd?.(this.snapshot(job));

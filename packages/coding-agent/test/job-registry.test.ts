@@ -162,6 +162,23 @@ describe("JobRegistry", () => {
 		expect(ended).toEqual(["job-1 exited", "job-2 failed"]);
 	});
 
+	it("masks credentials in the output and the log file when redaction is on", async () => {
+		// Assembled at runtime so no credential-shaped literal is committed.
+		const secret = "gh" + "p_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";
+		for (const redact of [true, false]) {
+			const { operations, runs } = fakeOperations();
+			const registry = new JobRegistry(operations, undefined, () => redact);
+			registry.start("printenv", "/repo");
+			runs[0].write(`token ${secret.slice(0, 10)}`);
+			runs[0].write(`${secret.slice(10)}\n`);
+			runs[0].exit(0);
+			const result = await registry.read("job-1", 60_000);
+			const expected = redact ? "token <redacted>\n" : `token ${secret}\n`;
+			expect(result.output).toBe(expected);
+			expect(readFileSync(result.logPath, "utf-8")).toBe(expected);
+		}
+	});
+
 	it("rejects an unknown job id", async () => {
 		const registry = new JobRegistry(fakeOperations().operations);
 		await expect(registry.read("job-9", 0)).rejects.toThrow('Unknown job: job-9. Use action "list" to see the jobs.');

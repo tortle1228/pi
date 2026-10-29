@@ -26,11 +26,14 @@ export function createJobsExtension(options: JobsExtensionOptions = {}): Extensi
 		};
 		// A job that ends on its own is reported to the model: before its next call while it runs, or with the next
 		// prompt while idle. It never starts a turn by itself.
-		const registry = new JobRegistry(operations, (job) =>
-			pi.sendMessage(
-				{ customType: JOB_ENDED_MESSAGE_TYPE, content: formatJobEnded(job), display: true, details: job },
-				{ deliverAs: "steer" },
-			),
+		const registry = new JobRegistry(
+			operations,
+			(job) =>
+				pi.sendMessage(
+					{ customType: JOB_ENDED_MESSAGE_TYPE, content: formatJobEnded(job), display: true, details: job },
+					{ deliverAs: "steer" },
+				),
+			() => pi.getSettings().shellRedactSecrets ?? true,
 		);
 		pi.registerTool({
 			...createJobToolDefinition({ registry, getCommandPrefix: () => pi.getSettings().shellCommandPrefix }),
