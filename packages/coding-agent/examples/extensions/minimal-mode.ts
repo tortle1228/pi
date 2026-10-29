@@ -259,8 +259,9 @@ export default function (pi: ExtensionAPI) {
 
 		renderCall(args, theme, _context) {
 			const pattern = args.pattern || "";
-			const path = shortenPath(args.path || ".");
-			const glob = args.glob;
+			const paths = Array.isArray(args.path) ? args.path : [args.path || "."];
+			const path = paths.map((p) => shortenPath(p)).join(", ");
+			const glob = Array.isArray(args.glob) ? args.glob.join(", ") : args.glob;
 			const limit = args.limit;
 
 			let text = `${theme.fg("toolTitle", theme.bold("grep"))} ${theme.fg("accent", `/${pattern}/`)}`;

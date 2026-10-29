@@ -1,6 +1,7 @@
 import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { spawn } from "child_process";
 import path from "path";
 import { type Static, Type } from "typebox";
@@ -18,18 +19,35 @@ import {
 	truncateLine,
 } from "./truncate.ts";
 
+const stringOrStrings = (description: string) =>
+	Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())], { description }));
+
 const grepSchema = Type.Object({
 	pattern: Type.String({ description: "Search pattern (regex or literal string)" }),
-	path: Type.Optional(Type.String({ description: "Directory or file to search (default: current directory)" })),
-	glob: Type.Optional(Type.String({ description: "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'" })),
+	path: stringOrStrings("Directory or file to search, or a list of them (default: current directory)"),
+	glob: stringOrStrings(
+		"Filter files by glob pattern, or a list of patterns, e.g. '*.ts' or ['src/**', '!**/*.spec.ts']",
+	),
 	ignoreCase: Type.Optional(Type.Boolean({ description: "Case-insensitive search (default: false)" })),
 	literal: Type.Optional(
 		Type.Boolean({ description: "Treat pattern as literal string instead of regex (default: false)" }),
 	),
+	multiline: Type.Optional(Type.Boolean({ description: "Allow matches to span multiple lines (default: false)" })),
 	context: Type.Optional(
 		Type.Number({ description: "Number of lines to show before and after each match (default: 0)" }),
 	),
-	limit: Type.Optional(Type.Number({ description: "Maximum number of matches to return (default: 100)" })),
+	mode: Type.Optional(
+		StringEnum(["content", "files", "count"] as const, {
+			description:
+				"content: matching lines (default); files: paths of matching files; count: number of matches per file",
+		}),
+	),
+	limit: Type.Optional(
+		Type.Number({
+			description: "Maximum number of results: matches in content mode, files otherwise (default: 100)",
+		}),
+	),
+	skip: Type.Optional(Type.Number({ description: "Number of results to skip, for paging (default: 0)" })),
 });
 
 export const grepToolSystemPromptContribution = {
@@ -38,11 +56,17 @@ export const grepToolSystemPromptContribution = {
 } as const;
 
 export type GrepToolInput = Static<typeof grepSchema>;
+type GrepMode = "content" | "files" | "count";
 const DEFAULT_LIMIT = 100;
 
 export interface GrepToolDetails {
 	truncation?: TruncationResult;
+	/** Set in content mode when more matches exist beyond the returned page. */
 	matchLimitReached?: number;
+	/** Set in files and count modes when more files exist beyond the returned page. */
+	fileLimitReached?: number;
+	/** The `skip` value that returns the next page. Set together with a limit field. */
+	nextSkip?: number;
 	linesTruncated?: boolean;
 }
 
@@ -67,6 +91,31 @@ export interface GrepToolOptions {
 	operations?: GrepOperations;
 }
 
+/** The subset of ripgrep's `--json` messages this tool reads. */
+interface RgJsonEvent {
+	type: string;
+	data?: {
+		path?: { text?: string };
+		line_number?: number;
+		lines?: { text?: string };
+		stats?: { matches?: number };
+	};
+}
+
+interface ContentMatch {
+	filePath: string;
+	lineNumber: number;
+	lineText?: string;
+}
+
+interface FileCount {
+	filePath: string;
+	count: number;
+}
+
+const toArray = (value: string | string[] | undefined): string[] =>
+	value === undefined ? [] : Array.isArray(value) ? value : [value];
+
 export function createGrepToolDefinition(
 	cwd: string,
 	options?: GrepToolOptions,
@@ -75,32 +124,12 @@ export function createGrepToolDefinition(
 	return {
 		name: "grep",
 		label: "grep",
-		description: `Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore. Output is truncated to ${DEFAULT_LIMIT} matches or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Long lines are truncated to ${GREP_MAX_LINE_LENGTH} chars.`,
+		description: `Search file contents for a pattern. Returns matching lines with file paths and line numbers, the paths of matching files (mode "files"), or match counts per file (mode "count"). Respects .gitignore. Results are sorted by path; page through them with skip. Output is truncated to ${DEFAULT_LIMIT} results or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Long lines are truncated to ${GREP_MAX_LINE_LENGTH} chars. With several paths, result paths are relative to the working directory.`,
 		promptSnippet: grepToolSystemPromptContribution.snippet,
 		parameters: grepSchema,
-		async execute(
-			_toolCallId,
-			{
-				pattern,
-				path: searchDir,
-				glob,
-				ignoreCase,
-				literal,
-				context,
-				limit,
-			}: {
-				pattern: string;
-				path?: string;
-				glob?: string;
-				ignoreCase?: boolean;
-				literal?: boolean;
-				context?: number;
-				limit?: number;
-			},
-			signal?: AbortSignal,
-			_onUpdate?,
-			ctx?: ExtensionContext,
-		) {
+		async execute(_toolCallId, params: GrepToolInput, signal?: AbortSignal, _onUpdate?, ctx?: ExtensionContext) {
+			const { pattern, ignoreCase, literal, multiline, context, limit, skip } = params;
+			const mode: GrepMode = params.mode ?? "content";
 			return new Promise((resolve, reject) => {
 				if (signal?.aborted) {
 					reject(new Error("Operation aborted"));
@@ -122,26 +151,38 @@ export function createGrepToolDefinition(
 							return;
 						}
 
-						const searchPath = resolveToCwd(searchDir || ".", ctx?.cwd || cwd);
+						const workingDir = ctx?.cwd || cwd;
+						const requestedPaths = toArray(params.path);
+						const searchPaths = (requestedPaths.length > 0 ? requestedPaths : ["."]).map((p) =>
+							resolveToCwd(p || ".", workingDir),
+						);
 						const ops = customOps ?? defaultGrepOperations;
-						let isDirectory: boolean;
-						try {
-							isDirectory = await ops.isDirectory(searchPath);
-						} catch {
-							settle(() => reject(new Error(`Path not found: ${searchPath}`)));
-							return;
+						const directoryFlags: boolean[] = [];
+						for (const searchPath of searchPaths) {
+							try {
+								directoryFlags.push(await ops.isDirectory(searchPath));
+							} catch {
+								settle(() => reject(new Error(`Path not found: ${searchPath}`)));
+								return;
+							}
 						}
 
 						const contextValue = context && context > 0 ? context : 0;
 						const effectiveLimit = Math.max(1, limit ?? DEFAULT_LIMIT);
+						const skipCount = Math.max(0, Math.floor(skip ?? 0));
+						// One path keeps the historical format (relative to that directory, or the file's
+						// basename); several paths are made relative to the working directory so results
+						// from different roots stay distinguishable.
+						const singlePath = searchPaths.length === 1;
+						const baseDir = singlePath ? (directoryFlags[0] ? searchPaths[0] : undefined) : workingDir;
 						const formatPath = (filePath: string): string => {
-							if (isDirectory) {
-								const relative = path.relative(searchPath, filePath);
-								if (relative && !relative.startsWith("..")) {
+							if (baseDir !== undefined) {
+								const relative = path.relative(baseDir, filePath);
+								if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
 									return relative.replace(/\\/g, "/");
 								}
 							}
-							return path.basename(filePath);
+							return singlePath ? path.basename(filePath) : filePath.replace(/\\/g, "/");
 						};
 
 						const fileCache = new Map<string, string[]>();
@@ -161,21 +202,32 @@ export function createGrepToolDefinition(
 
 						// --no-config: the tool contract (literal, glob, limit, ...) must not depend on
 						// ambient user config like RIPGREP_CONFIG_PATH. Users can customize via bash or extensions.
-						const args: string[] = ["--no-config", "--json", "--line-number", "--color=never", "--hidden"];
+						// --sort path: paging with skip needs the same order on every call.
+						const args: string[] = [
+							"--no-config",
+							"--json",
+							"--line-number",
+							"--color=never",
+							"--hidden",
+							"--sort",
+							"path",
+						];
 						if (ignoreCase) args.push("--ignore-case");
 						if (literal) args.push("--fixed-strings");
-						if (glob) args.push("--glob", glob);
-						args.push("--", pattern, searchPath);
+						if (multiline) args.push("--multiline");
+						// One match per file is enough to list it.
+						if (mode === "files") args.push("--max-count", "1");
+						for (const glob of toArray(params.glob)) args.push("--glob", glob);
+						args.push("--", pattern, ...searchPaths);
 
 						const child = spawn(rgPath, args, { stdio: ["ignore", "pipe", "pipe"] });
 						const rl = createInterface({ input: child.stdout });
 						let stderr = "";
-						let matchCount = 0;
-						let matchLimitReached = false;
+						let resultCount = 0;
+						let limitReached = false;
 						let linesTruncated = false;
 						let aborted = false;
 						let killedDueToLimit = false;
-						const outputLines: string[] = [];
 
 						const cleanup = () => {
 							rl.close();
@@ -196,49 +248,84 @@ export function createGrepToolDefinition(
 							stderr += chunk.toString();
 						});
 
-						const formatBlock = async (filePath: string, lineNumber: number): Promise<string[]> => {
+						// Counts one result and reports whether it belongs to the requested page. The first
+						// result past the page proves there is a next page, so ripgrep can stop there.
+						const takeResult = (): boolean => {
+							resultCount++;
+							if (resultCount <= skipCount) return false;
+							if (resultCount > skipCount + effectiveLimit) {
+								limitReached = true;
+								stopChild(true);
+								return false;
+							}
+							return true;
+						};
+
+						const matches: ContentMatch[] = [];
+						const listedFiles: string[] = [];
+						const fileCounts: FileCount[] = [];
+						rl.on("line", (line) => {
+							if (!line.trim() || limitReached) return;
+							let event: RgJsonEvent;
+							try {
+								event = JSON.parse(line) as RgJsonEvent;
+							} catch {
+								return;
+							}
+							const filePath = event.data?.path?.text;
+							if (!filePath) return;
+							if (mode === "count") {
+								const count = event.data?.stats?.matches;
+								if (event.type === "end" && count && takeResult()) fileCounts.push({ filePath, count });
+								return;
+							}
+							if (event.type !== "match") return;
+							if (mode === "files") {
+								if (listedFiles.at(-1) !== filePath && takeResult()) listedFiles.push(filePath);
+								return;
+							}
+							const lineNumber = event.data?.line_number;
+							if (typeof lineNumber === "number" && takeResult()) {
+								matches.push({ filePath, lineNumber, lineText: event.data?.lines?.text });
+							}
+						});
+
+						const formatBlock = async (filePath: string, firstLine: number, lastLine: number) => {
 							const relativePath = formatPath(filePath);
 							const lines = await getFileLines(filePath);
-							if (!lines.length) return [`${relativePath}:${lineNumber}: (unable to read file)`];
+							if (!lines.length) return [`${relativePath}:${firstLine}: (unable to read file)`];
 							const block: string[] = [];
-							const start = contextValue > 0 ? Math.max(1, lineNumber - contextValue) : lineNumber;
-							const end = contextValue > 0 ? Math.min(lines.length, lineNumber + contextValue) : lineNumber;
+							const start = Math.max(1, firstLine - contextValue);
+							const end = Math.min(lines.length, lastLine + contextValue);
 							for (let current = start; current <= end; current++) {
-								const lineText = lines[current - 1] ?? "";
-								const sanitized = lineText.replace(/\r/g, "");
-								const isMatchLine = current === lineNumber;
+								const sanitized = (lines[current - 1] ?? "").replace(/\r/g, "");
 								// Truncate long lines so grep output stays compact.
 								const { text: truncatedText, wasTruncated } = truncateLine(sanitized);
 								if (wasTruncated) linesTruncated = true;
+								const isMatchLine = current >= firstLine && current <= lastLine;
 								if (isMatchLine) block.push(`${relativePath}:${current}: ${truncatedText}`);
 								else block.push(`${relativePath}-${current}- ${truncatedText}`);
 							}
 							return block;
 						};
 
-						// Collect matches during streaming, then format them after rg exits.
-						const matches: Array<{ filePath: string; lineNumber: number; lineText?: string }> = [];
-						rl.on("line", (line) => {
-							if (!line.trim() || matchCount >= effectiveLimit) return;
-							let event: any;
-							try {
-								event = JSON.parse(line);
-							} catch {
-								return;
+						const formatMatch = async (match: ContentMatch): Promise<string[]> => {
+							// ripgrep reports the matched text; a multiline match spans several lines.
+							const matchLines =
+								match.lineText === undefined
+									? undefined
+									: match.lineText.replace(/\r\n/g, "\n").replace(/\r/g, "").replace(/\n$/, "").split("\n");
+							const lastLine = match.lineNumber + (matchLines?.length ?? 1) - 1;
+							if (contextValue > 0 || matchLines === undefined) {
+								return formatBlock(match.filePath, match.lineNumber, lastLine);
 							}
-							if (event.type === "match") {
-								matchCount++;
-								const filePath = event.data?.path?.text;
-								const lineNumber = event.data?.line_number;
-								const lineText = event.data?.lines?.text;
-								if (filePath && typeof lineNumber === "number")
-									matches.push({ filePath, lineNumber, lineText });
-								if (matchCount >= effectiveLimit) {
-									matchLimitReached = true;
-									stopChild(true);
-								}
-							}
-						});
+							const relativePath = formatPath(match.filePath);
+							return matchLines.map((text, index) => {
+								const { text: truncatedText, wasTruncated } = truncateLine(text);
+								if (wasTruncated) linesTruncated = true;
+								return `${relativePath}:${match.lineNumber + index}: ${truncatedText}`;
+							});
+						};
 
 						child.on("error", (error) => {
 							cleanup();
@@ -255,42 +342,46 @@ export function createGrepToolDefinition(
 								settle(() => reject(new Error(errorMsg)));
 								return;
 							}
-							if (matchCount === 0) {
+							if (resultCount === 0) {
 								settle(() =>
 									resolve({ content: [{ type: "text", text: "No matches found" }], details: undefined }),
 								);
 								return;
 							}
+							if (resultCount <= skipCount) {
+								const unit = mode === "content" ? "matches" : "files";
+								const text = `No results after skip=${skipCount} (${resultCount} ${unit} in total)`;
+								settle(() => resolve({ content: [{ type: "text", text }], details: undefined }));
+								return;
+							}
 
 							// Format matches after streaming finishes so custom readFile() backends can be async.
-							for (const match of matches) {
-								if (contextValue === 0 && match.lineText !== undefined) {
-									const relativePath = formatPath(match.filePath);
-									const sanitized = match.lineText
-										.replace(/\r\n/g, "\n")
-										.replace(/\r/g, "")
-										.replace(/\n$/, "");
-									const { text: truncatedText, wasTruncated } = truncateLine(sanitized);
-									if (wasTruncated) linesTruncated = true;
-									outputLines.push(`${relativePath}:${match.lineNumber}: ${truncatedText}`);
-								} else {
-									const block = await formatBlock(match.filePath, match.lineNumber);
-									outputLines.push(...block);
-								}
+							const outputLines: string[] = [];
+							if (mode === "files") outputLines.push(...listedFiles.map(formatPath));
+							else if (mode === "count") {
+								outputLines.push(
+									...fileCounts.map(({ filePath, count }) => `${formatPath(filePath)}:${count}`),
+								);
+							} else {
+								for (const match of matches) outputLines.push(...(await formatMatch(match)));
 							}
 
 							const rawOutput = outputLines.join("\n");
-							// Apply byte truncation. There is no line limit here because the match limit already capped rows.
+							// Apply byte truncation. There is no line limit here because the result limit already capped rows.
 							const truncation = truncateHead(rawOutput, { maxLines: Number.MAX_SAFE_INTEGER });
 							let output = truncation.content;
 							const details: GrepToolDetails = {};
-							// Build actionable notices for truncation and match limits.
+							// Build actionable notices for truncation and result limits.
 							const notices: string[] = [];
-							if (matchLimitReached) {
+							if (limitReached) {
+								const nextSkip = skipCount + effectiveLimit;
+								const unit = mode === "content" ? "matches" : "files";
 								notices.push(
-									`${effectiveLimit} matches limit reached. Use limit=${effectiveLimit * 2} for more, or refine pattern`,
+									`${effectiveLimit} ${unit} limit reached. Use skip=${nextSkip} for more, or refine pattern`,
 								);
-								details.matchLimitReached = effectiveLimit;
+								if (mode === "content") details.matchLimitReached = effectiveLimit;
+								else details.fileLimitReached = effectiveLimit;
+								details.nextSkip = nextSkip;
 							}
 							if (truncation.truncated) {
 								notices.push(`${formatSize(DEFAULT_MAX_BYTES)} limit reached`);

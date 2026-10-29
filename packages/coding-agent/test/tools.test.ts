@@ -903,9 +903,114 @@ describe("Coding Agent Tools", () => {
 			expect(output).toContain("context.txt-1- before");
 			expect(output).toContain("context.txt:2: match one");
 			expect(output).toContain("context.txt-3- after");
-			expect(output).toContain("[1 matches limit reached. Use limit=2 for more, or refine pattern]");
+			expect(output).toContain("[1 matches limit reached. Use skip=1 for more, or refine pattern]");
 			// Ensure second match is not present
 			expect(output).not.toContain("match two");
+			expect(result.details).toMatchObject({ matchLimitReached: 1, nextSkip: 1 });
+		});
+
+		it("should page through matches with skip", async () => {
+			const testFile = join(testDir, "pages.txt");
+			writeFileSync(testFile, ["match one", "match two", "match three"].join("\n"));
+
+			const second = await grepTool.execute("test-call-skip", {
+				pattern: "match",
+				path: testFile,
+				limit: 1,
+				skip: 1,
+			});
+			expect(getTextOutput(second)).toContain("pages.txt:2: match two");
+			expect(getTextOutput(second)).not.toContain("match one");
+			expect(second.details).toMatchObject({ matchLimitReached: 1, nextSkip: 2 });
+
+			const last = await grepTool.execute("test-call-skip-last", {
+				pattern: "match",
+				path: testFile,
+				limit: 1,
+				skip: 2,
+			});
+			expect(getTextOutput(last)).toBe("pages.txt:3: match three");
+			expect(last.details).toBeUndefined();
+
+			const past = await grepTool.execute("test-call-skip-past", { pattern: "match", path: testFile, skip: 5 });
+			expect(getTextOutput(past)).toBe("No results after skip=5 (3 matches in total)");
+		});
+
+		it("should not report a limit when the matches fit exactly", async () => {
+			const testFile = join(testDir, "exact.txt");
+			writeFileSync(testFile, "match one\nmatch two\n");
+
+			const result = await grepTool.execute("test-call-exact", { pattern: "match", path: testFile, limit: 2 });
+			expect(getTextOutput(result)).toBe("exact.txt:1: match one\nexact.txt:2: match two");
+			expect(result.details).toBeUndefined();
+		});
+
+		it("should list matching files sorted by path in files mode", async () => {
+			writeFileSync(join(testDir, "b.txt"), "needle\nneedle\n");
+			writeFileSync(join(testDir, "a.txt"), "needle\n");
+			writeFileSync(join(testDir, "c.txt"), "other\n");
+
+			const result = await grepTool.execute("test-call-files", { pattern: "needle", path: testDir, mode: "files" });
+			expect(getTextOutput(result)).toBe("a.txt\nb.txt");
+
+			const page = await grepTool.execute("test-call-files-page", {
+				pattern: "needle",
+				path: testDir,
+				mode: "files",
+				limit: 1,
+			});
+			expect(getTextOutput(page)).toBe("a.txt\n\n[1 files limit reached. Use skip=1 for more, or refine pattern]");
+			expect(page.details).toMatchObject({ fileLimitReached: 1, nextSkip: 1 });
+		});
+
+		it("should count matches per file in count mode", async () => {
+			writeFileSync(join(testDir, "a.txt"), "needle needle\nneedle\n");
+			writeFileSync(join(testDir, "b.txt"), "needle\n");
+			writeFileSync(join(testDir, "c.txt"), "other\n");
+
+			const result = await grepTool.execute("test-call-count", { pattern: "needle", path: testDir, mode: "count" });
+			expect(getTextOutput(result)).toBe("a.txt:3\nb.txt:1");
+		});
+
+		it("should search several paths and globs relative to the working directory", async () => {
+			mkdirSync(join(testDir, "src"));
+			mkdirSync(join(testDir, "lib"));
+			mkdirSync(join(testDir, "docs"));
+			writeFileSync(join(testDir, "src", "index.ts"), "needle\n");
+			writeFileSync(join(testDir, "src", "index.test.ts"), "needle\n");
+			writeFileSync(join(testDir, "lib", "index.ts"), "needle\n");
+			writeFileSync(join(testDir, "lib", "notes.md"), "needle\n");
+			writeFileSync(join(testDir, "docs", "index.ts"), "needle\n");
+
+			const result = await createGrepTool(testDir).execute("test-call-multi-path", {
+				pattern: "needle",
+				path: ["src", "lib"],
+				glob: ["*.ts", "!*.test.ts"],
+				mode: "files",
+			});
+			expect(getTextOutput(result)).toBe("src/index.ts\nlib/index.ts");
+		});
+
+		it("should number every line of a multiline match", async () => {
+			const testFile = join(testDir, "multi.txt");
+			writeFileSync(testFile, "start\nfunction a() {\n  return 1;\n}\nend\n");
+
+			const result = await grepTool.execute("test-call-multiline", {
+				pattern: "function a\\(\\) \\{\\n  return",
+				path: testFile,
+				multiline: true,
+			});
+			expect(getTextOutput(result)).toBe("multi.txt:2: function a() {\nmulti.txt:3:   return 1;");
+
+			const withContext = await grepTool.execute("test-call-multiline-context", {
+				pattern: "function a\\(\\) \\{\\n  return",
+				path: testFile,
+				multiline: true,
+				context: 1,
+			});
+			expect(getTextOutput(withContext)).toBe(
+				"multi.txt-1- start\nmulti.txt:2: function a() {\nmulti.txt:3:   return 1;\nmulti.txt-4- }",
+			);
 		});
 
 		// https://github.com/earendil-works/pi/issues/11398

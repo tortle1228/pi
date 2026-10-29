@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- `GrepToolInput.path` and `GrepToolInput.glob` are now `string | string[]`. Extensions that read these fields from `grep` tool calls, or reimplement `grep` with the built-in schema, must handle lists
+
 ### Added
+
+- The `grep` tool has `mode: "files"` to list matching files and `mode: "count"` to count matches per file, `skip` to page through results, `multiline` for matches that span lines, and accepts lists for `path` and `glob`. Results are sorted by path so pages stay stable, the limit notice names the `skip` value for the next page, and it now appears only when more results exist
 
 - Added `prompt.piDocs`. Set it to `false` to keep the Pi documentation section out of the default system prompt and provide those pointers with a skill instead. See [docs/settings.md](docs/settings.md)
 - Extension packages can now show their changelog after an update. Pi reads `pi.changelogPath` from the package's `package.json`, or `CHANGELOG.md` in the package root, and on the next fresh launch shows entries newer than the last seen version under "Extension Updates". The `collapseChangelog` setting condenses this to one line per package ([#5958](https://github.com/earendil-works/pi/issues/5958), [#8790](https://github.com/earendil-works/pi/pull/8790))
