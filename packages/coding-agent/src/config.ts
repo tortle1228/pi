@@ -435,6 +435,16 @@ export function getExportTemplateDir(): string {
 	return join(packageDir, srcOrDist, "core", "export-html");
 }
 
+/**
+ * Get path to the native grep engine for this platform, built by `npm run build:native-grep`.
+ * The file may not exist; the grep tool then uses ripgrep.
+ * - For Bun binary: native/prebuilds/<platform>-<arch>/ next to executable
+ * - For Node.js and source: native/prebuilds/<platform>-<arch>/ in the package
+ */
+export function getNativeGrepAddonPath(): string {
+	return join(getPackageDir(), "native", "prebuilds", `${process.platform}-${process.arch}`, "pi_grep.node");
+}
+
 /** Get path to package.json */
 export function getPackageJsonPath(): string {
 	return join(getPackageDir(), "package.json");

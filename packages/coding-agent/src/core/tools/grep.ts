@@ -5,6 +5,7 @@ import path from "path";
 import { type Static, Type } from "typebox";
 import type { ExtensionContext, ToolDefinition } from "../extensions/types.ts";
 import type { GrepEngine, GrepHit, GrepMode } from "./grep-engine.ts";
+import { createNativeGrepEngine } from "./grep-native-engine.ts";
 import { createRgGrepEngine } from "./grep-rg-engine.ts";
 import { resolveToCwd } from "./path-utils.ts";
 import { grepRenderers } from "./renderers/grep.ts";
@@ -87,8 +88,14 @@ const defaultGrepOperations: GrepOperations = {
 export interface GrepToolOptions {
 	/** Custom operations for grep. Default: local filesystem */
 	operations?: GrepOperations;
-	/** Search engine. Default: ripgrep */
+	/** Search engine. Default: the native engine when it is built for this platform, otherwise ripgrep */
 	engine?: GrepEngine;
+}
+
+/** The native engine when its addon loads, otherwise ripgrep. `PI_GREP_ENGINE=rg` forces ripgrep. */
+function createDefaultGrepEngine(): GrepEngine {
+	if (process.env.PI_GREP_ENGINE === "rg") return createRgGrepEngine();
+	return createNativeGrepEngine() ?? createRgGrepEngine();
 }
 
 const toArray = (value: string | string[] | undefined): string[] =>
@@ -99,7 +106,7 @@ export function createGrepToolDefinition(
 	options?: GrepToolOptions,
 ): ToolDefinition<typeof grepSchema, GrepToolDetails | undefined> {
 	const ops = options?.operations ?? defaultGrepOperations;
-	const engine = options?.engine ?? createRgGrepEngine();
+	const engine = options?.engine ?? createDefaultGrepEngine();
 	return {
 		name: "grep",
 		label: "grep",
