@@ -148,12 +148,14 @@ The MCP resource tools (`list_mcp_resources`, `list_mcp_resource_templates`, `re
 | `find` | Find paths using glob patterns |
 | `ls` | List directory contents |
 
-Built-in extensions add two more tools. They are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
+Built-in extensions add optional tools. They are off by default; name them in `--tools` or `defaultTools` to enable them. The MCP extension also activates `codemode` or `tool_search` when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)).
 
 | Built-in extension | Purpose |
 |---|---|
 | `codemode` | Run JavaScript that calls the other tools, for example in parallel with `Promise.allSettled`; only the script's output reaches the model |
 | `tool_search` | Search tools that are not declared to the model (`codemode` and `deferred` exposure, such as MCP tools) and declare the matches for the next call |
+
+The `builtin:session-search` extension additionally provides `session_search` and `session_read` for read-only retrieval of past session evidence. Enable them with `pi --tools +session_search,+session_read`. See [Session search](sessions.md#search-past-sessions-with-the-agent) for scope, branch references, context edits, and output limits.
 
 ### Enable codemode
 

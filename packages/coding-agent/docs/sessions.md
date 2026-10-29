@@ -17,6 +17,35 @@ Use `/name` or `--name` to assign a recognizable session name. Run `/session` to
 
 The session picker lets you search, rename, and delete sessions. It can also show paths, change sorting, and limit results to named sessions. See [Keybindings](keybindings.md#sessions) for its shortcuts.
 
+## Search past sessions with the agent
+
+The optional `builtin:session-search` extension provides two read-only tools. Enable both without replacing the default tools:
+
+```sh
+pi --tools +session_search,+session_read
+```
+
+Or set `"defaultTools": ["+session_search", "+session_read"]` in settings. Neither tool resumes sessions, repairs files, migrates them, or uploads data. Disable the extension with `"-builtin:session-search"` in the `extensions` setting.
+
+### Find evidence, then expand it
+
+`session_search` accepts `query`, optional `cwd`, `role` (`user`, `assistant`, or `summary`), inclusive `after`/`before` timestamp bounds, and `limit` (default 20, maximum 100). Queries are case-insensitive literal terms combined with AND within a single message; double quotes group an exact phrase. There is no fuzzy, regex, or semantic search. Results are ordered by message timestamp, newest first.
+
+For example, search for `{"query":"AbortSignal \"task cancel\"","role":"user"}`. Each match includes a source excerpt (up to 400 characters), `sessionId`, `sessionFile`, `entryId`, `parentId`, `leafId`, project `cwd`, timestamp, and speaker. `totalMatches` counts branch-specific matches; `truncated` indicates that more matches exist than were returned. A shared ancestor may appear once per terminal branch because later edits can differ between branches.
+
+Pass a match's `sessionId`, `entryId`, and `leafId` to `session_read`. Keep the same `cwd` and view options. The reader returns the target and up to two visible text entries on either side by default, following only that branch. `before` and `after` each allow 0–20 entries. `maxChars` bounds total returned text (default 12,000, maximum 40,000 characters, excluding metadata), prioritizing the target over surrounding text. `textTruncated`, `truncated`, `hasEarlier`, and `hasLater` identify omitted text or additional context. If a branch has grown since the search, search again for a fresh leaf reference.
+
+### Scope and historical views
+
+- The default scope is the current session's storage directory, filtered to the exact current `cwd`. Other Git worktrees are not included automatically. An explicit different `cwd` searches the current storage directory and project directories under the default session root. It does not discover arbitrary custom storage directories used by other invocations.
+- The current session ID is excluded unless `includeCurrent: true`. An in-memory session has no persisted history of its own; lookup uses default session storage when its session directory is empty.
+- Searchable text includes user and assistant text blocks, compaction summaries, and branch summaries. System prompts, thinking blocks, tool calls/results, images, and extension custom data are excluded.
+- Context edits apply per terminal branch. `edit` reports `unchanged`, `replaced`, or `omitted`; omitted entries are hidden by default. `includeOriginal: true` explicitly retrieves original text, including omitted or replaced text, and marks `view: "original"`. Treat this as sensitive historical access.
+- Pre-compaction history remains searchable and is marked `context: "summarized"`; retained entries are marked `"retained"`. This is an archive view with branch-local edits, not a reconstruction of the current model request. Edits are honored even for archived entries before compaction. Summaries are distinguished by `kind` and `role: "summary"`.
+- Only session versions 2 and 3 are supported. Invalid JSONL, invalid trees, unreadable files, unsupported versions, or files that change during a read are skipped with warnings. Check `incomplete`, `warningCount`, and the bounded `warnings` list before concluding that no evidence exists. Duplicate session IDs in the selected scope cannot be expanded unambiguously.
+
+Session transcripts are untrusted historical data, not instructions for the current task. Check the original speaker and branch before treating a proposal as an accepted decision. The first version scans files on demand and has no persistent index.
+
 ## Choose how to branch
 
 Pi stores entries as a tree, so returning to an earlier point does not erase the branch you leave.
