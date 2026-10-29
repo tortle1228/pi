@@ -192,6 +192,37 @@ const CodemodeSettingsSchema = Type.Object({
 	),
 });
 
+const LspServerSettingsSchema = Type.Object({
+	command: Type.Optional(
+		Type.Array(Type.String(), {
+			description:
+				'Command and arguments that start the server on stdio, such as ["typescript-language-server", "--stdio"].',
+		}),
+	),
+	extensions: Type.Optional(
+		Type.Array(Type.String(), { description: 'File extensions the server checks, such as [".ts", ".tsx"].' }),
+	),
+	initializationOptions: Type.Optional(
+		Type.Unknown({ description: "Server-specific options sent with the initialize request." }),
+	),
+	disabled: Type.Optional(Type.Boolean({ description: "Turn off a built-in server." })),
+});
+
+const LspSettingsSchema = Type.Object({
+	enabled: Type.Optional(
+		Type.Boolean({
+			description: "Append language server diagnostics to the results of the edit and write tools.",
+			default: SETTINGS_DEFAULTS.lsp.enabled,
+		}),
+	),
+	servers: Type.Optional(
+		Type.Record(Type.String(), LspServerSettingsSchema, {
+			description:
+				"Language servers by name. A built-in name (typescript, pyright, rust-analyzer, gopls) changes or disables that server; another name adds one.",
+		}),
+	),
+});
+
 const PackageSourceSchema = Type.Union(
 	[
 		Type.String({ description: "Load all resources from the package." }),
@@ -436,6 +467,7 @@ export const SettingsSchema = Type.Object(
 		warnings: Type.Optional(WarningSettingsSchema),
 		prompt: Type.Optional(PromptSettingsSchema),
 		codemode: Type.Optional(CodemodeSettingsSchema),
+		lsp: Type.Optional(LspSettingsSchema),
 		sessionDir: Type.Optional(
 			Type.String({
 				description: "Custom session storage directory, in the same format as the --session-dir CLI flag.",
@@ -519,6 +551,8 @@ export interface WarningSettings extends Static<typeof WarningSettingsSchema> {}
 export interface PromptSettings extends Static<typeof PromptSettingsSchema> {}
 export type CodemodeMode = Static<typeof CodemodeModeSchema>;
 export interface CodemodeSettings extends Static<typeof CodemodeSettingsSchema> {}
+export interface LspServerSettings extends Static<typeof LspServerSettingsSchema> {}
+export interface LspSettings extends Static<typeof LspSettingsSchema> {}
 export type DefaultProjectTrust = NonNullable<SettingsInput["defaultProjectTrust"]>;
 export type QuietStartup = NonNullable<SettingsInput["quietStartup"]>;
 export type TransportSetting = NonNullable<SettingsInput["transport"]>;

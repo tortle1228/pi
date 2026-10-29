@@ -63,6 +63,38 @@ This replaces `bash` with `powershell` and enables `grep`: `["-bash", "+powershe
 
 CLI tool options override this setting for one invocation. `--tools` with only `+name` and `-name` entries changes the resolved `defaultTools` selection instead, for example `pi --tools +codemode`. On `/reload`, these entries apply to the reloaded setting too, so a tool removed with `-name` stays removed. See [Command Line](cli.md#tools).
 
+### LSP diagnostics
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `lsp.enabled` | boolean | `false` | Append language server diagnostics to the results of `edit` and `write`. |
+| `lsp.servers` | object | Built-in servers | Language servers by name. Each entry can set `command` (argv), `extensions`, `initializationOptions`, and `disabled`. |
+
+With `lsp.enabled`, every successful `edit` or `write` result gets the errors and warnings the file's language server reports for the new content, so the model sees them in the same turn. A file without errors or warnings adds nothing. The built-in servers are:
+
+| Name | Command | Files |
+|---|---|---|
+| `typescript` | `typescript-language-server --stdio` | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` |
+| `pyright` | `pyright-langserver --stdio` | `.py`, `.pyi` |
+| `rust-analyzer` | `rust-analyzer` | `.rs` |
+| `gopls` | `gopls` | `.go` |
+
+Pi does not install servers. It looks for the command in the project's `node_modules/.bin`, then on `PATH`, and starts it in the working directory on first use. A server that is not installed is reported once per session. The first check of a server waits up to 10 seconds while it loads the project, later ones up to 3 seconds; when no diagnostics arrive in time, the result says so instead of reporting a clean file. Servers stop when the session ends.
+
+A built-in name changes or disables that server, and another name adds one:
+
+```json
+{
+  "lsp": {
+    "enabled": true,
+    "servers": {
+      "gopls": { "disabled": true },
+      "zig": { "command": ["zls"], "extensions": [".zig"] }
+    }
+  }
+}
+```
+
 ## Prompt
 
 | Setting | Type | Default | Description |
@@ -173,7 +205,7 @@ Resource paths in user settings resolve from the agent directory. Paths in proje
 
 Resource arrays support glob exclusions with `!pattern`, exact inclusion with `+path`, and exact exclusion with `-path`. Pi loads resources listed in both user-level and project settings.
 
-The built-in extensions are named `builtin:mcp`, `builtin:llama.cpp`, `builtin:codemode`, and `builtin:tool-search` in `extensions`. They load by default; `-builtin:mcp` disables one. A `+builtin:<name>` or `-builtin:<name>` entry in project settings overrides the user setting. `pi config` lists them under Built-in. `--no-extensions` disables them too, and `-e builtin:<name>` loads one explicitly.
+The built-in extensions are named `builtin:mcp`, `builtin:llama.cpp`, `builtin:codemode`, `builtin:tool-search`, and `builtin:lsp` in `extensions`. They load by default; `-builtin:mcp` disables one. A `+builtin:<name>` or `-builtin:<name>` entry in project settings overrides the user setting. `pi config` lists them under Built-in. `--no-extensions` disables them too, and `-e builtin:<name>` loads one explicitly.
 
 ## Updates, telemetry, and warnings
 

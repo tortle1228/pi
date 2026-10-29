@@ -689,6 +689,48 @@
         }
       }
     },
+    "lsp": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Append language server diagnostics to the results of the edit and write tools.",
+          "default": false
+        },
+        "servers": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Command and arguments that start the server on stdio, such as [\"typescript-language-server\", \"--stdio\"]."
+                },
+                "extensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "File extensions the server checks, such as [\".ts\", \".tsx\"]."
+                },
+                "initializationOptions": {
+                  "description": "Server-specific options sent with the initialize request."
+                },
+                "disabled": {
+                  "type": "boolean",
+                  "description": "Turn off a built-in server."
+                }
+              }
+            }
+          },
+          "description": "Language servers by name. A built-in name (typescript, pyright, rust-analyzer, gopls) changes or disables that server; another name adds one."
+        }
+      }
+    },
     "sessionDir": {
       "type": "string",
       "description": "Custom session storage directory, in the same format as the --session-dir CLI flag."
