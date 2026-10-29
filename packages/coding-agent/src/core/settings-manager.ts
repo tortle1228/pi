@@ -17,6 +17,7 @@ import type {
 	FullscreenExitOutput,
 	MermaidRenderingMode,
 	PackageSource,
+	PromptSettings,
 	QuietStartup,
 	SessionShareDestination,
 	Settings,
@@ -39,6 +40,7 @@ export type {
 	MarkdownSettings,
 	MermaidRenderingMode,
 	PackageSource,
+	PromptSettings,
 	ProviderRetrySettings,
 	QuietStartup,
 	RetrySettings,
@@ -1442,6 +1444,10 @@ export class SettingsManager {
 		this.globalSettings.markdown.mermaid = mode;
 		this.markModified("markdown", "mermaid");
 		this.save();
+	}
+
+	getPromptSettings(): PromptSettings {
+		return { ...(this.settings.prompt ?? {}) };
 	}
 
 	getWarnings(): WarningSettings {

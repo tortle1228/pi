@@ -120,6 +120,19 @@ describe("buildSystemPrompt", () => {
 			);
 			expect(prompt).toContain("environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md)");
 		});
+
+		test("omits the docs section when includeDocsSection is false", () => {
+			const prompt = buildSystemPrompt({
+				includeDocsSection: false,
+				contextFiles: [],
+				skills: [],
+				cwd: "/tmp",
+			});
+
+			expect(prompt).not.toContain("<docs>");
+			expect(prompt).not.toContain("Pi documentation");
+			expect(prompt).toContain("<rules>");
+		});
 	});
 
 	describe("custom tool snippets", () => {

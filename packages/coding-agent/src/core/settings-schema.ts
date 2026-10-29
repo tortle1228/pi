@@ -145,6 +145,16 @@ const WarningSettingsSchema = Type.Object({
 	anthropicExtraUsage: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.warnings.anthropicExtraUsage })),
 });
 
+const PromptSettingsSchema = Type.Object({
+	piDocs: Type.Optional(
+		Type.Boolean({
+			description:
+				"Include the Pi documentation section in the default system prompt. Turn it off to keep Pi's own docs pointers out of the prompt and provide them through a skill instead.",
+			default: SETTINGS_DEFAULTS.prompt.piDocs,
+		}),
+	),
+});
+
 function codemodeMode(options?: TSchemaOptions) {
 	return Type.Union([Type.Literal("on"), Type.Literal("only")], options);
 }
@@ -390,6 +400,7 @@ export const SettingsSchema = Type.Object(
 		),
 		markdown: Type.Optional(MarkdownSettingsSchema),
 		warnings: Type.Optional(WarningSettingsSchema),
+		prompt: Type.Optional(PromptSettingsSchema),
 		codemode: Type.Optional(CodemodeSettingsSchema),
 		sessionDir: Type.Optional(
 			Type.String({
@@ -471,6 +482,7 @@ export interface ThinkingBudgetsSettings extends Static<typeof ThinkingBudgetsSe
 export type MermaidRenderingMode = NonNullable<Static<typeof MarkdownSettingsSchema>["mermaid"]>;
 export interface MarkdownSettings extends Static<typeof MarkdownSettingsSchema> {}
 export interface WarningSettings extends Static<typeof WarningSettingsSchema> {}
+export interface PromptSettings extends Static<typeof PromptSettingsSchema> {}
 export type CodemodeMode = Static<typeof CodemodeModeSchema>;
 export interface CodemodeSettings extends Static<typeof CodemodeSettingsSchema> {}
 export type DefaultProjectTrust = NonNullable<SettingsInput["defaultProjectTrust"]>;

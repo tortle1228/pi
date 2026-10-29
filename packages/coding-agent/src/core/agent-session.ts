@@ -1759,6 +1759,7 @@ export class AgentSession {
 			contextFiles: loadedContextFiles,
 			customPrompt: loaderSystemPrompt,
 			appendSystemPrompt,
+			includeDocsSection: this.settingsManager.getPromptSettings().piDocs,
 			selectedTools: validToolNames,
 			hiddenTools: [...this._hiddenDeclarations],
 			toolSnippets,

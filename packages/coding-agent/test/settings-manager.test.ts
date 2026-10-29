@@ -717,6 +717,14 @@ describe("SettingsManager", () => {
 		});
 	});
 
+	describe("getPromptSettings", () => {
+		it("should return piDocs from settings", () => {
+			writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ prompt: { piDocs: false } }));
+			const manager = SettingsManager.create(projectDir, agentDir);
+			expect(manager.getPromptSettings()).toEqual({ piDocs: false });
+		});
+	});
+
 	describe("getShellPath", () => {
 		it("should return undefined when not set", () => {
 			writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ theme: "dark" }));

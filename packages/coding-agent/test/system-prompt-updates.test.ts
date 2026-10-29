@@ -53,6 +53,20 @@ describe("system prompt updates", () => {
 		}
 	});
 
+	test("omits the docs section when the prompt.piDocs setting is false", async () => {
+		const harness = await createHarness({ settings: { prompt: { piDocs: false } } });
+		try {
+			harness.setResponses([fauxAssistantMessage("first")]);
+			await harness.session.prompt("one");
+			const head = getCurrentSystemMessage(harness.session.messages);
+			if (!head) throw new Error("expected system message");
+			expect(Object.keys(head.sections ?? {})).toEqual(["preamble", "tools", "rules", "cwd"]);
+			expect(harness.session.systemPrompt).not.toContain("<docs>");
+		} finally {
+			harness.cleanup();
+		}
+	});
+
 	// #11495
 	test("does not patch the prompt when the active tools are only reordered", async () => {
 		const harness = await createHarness();

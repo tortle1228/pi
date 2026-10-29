@@ -59,6 +59,12 @@ This replaces `bash` with `powershell` and enables `grep`: `["-bash", "+powershe
 
 CLI tool options override this setting for one invocation. `--tools` with only `+name` and `-name` entries changes the resolved `defaultTools` selection instead, for example `pi --tools +codemode`. On `/reload`, these entries apply to the reloaded setting too, so a tool removed with `-name` stays removed. See [Command Line](cli.md#tools).
 
+## Prompt
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `prompt.piDocs` | boolean | `true` | Include the section that points at Pi's packaged documentation in the default system prompt. Set it to `false` to leave those pointers out of the prompt and provide them with a [skill](skills.md) instead, for example when a provider inspects the system prompt. `/reload` applies a change. |
+
 ## Sessions and context
 
 | Setting | Type | Default | Description |

@@ -54,6 +54,9 @@ export const SETTINGS_DEFAULTS = {
 	warnings: {
 		anthropicExtraUsage: true,
 	},
+	prompt: {
+		piDocs: true,
+	},
 	codemode: {
 		mode: "on",
 		inlineBudget: 3000,
