@@ -56,6 +56,8 @@ export const SETTINGS_DEFAULTS = {
 	},
 	prompt: {
 		piDocs: true,
+		environmentContext: true,
+		dynamicDiscipline: true,
 	},
 	codemode: {
 		mode: "on",

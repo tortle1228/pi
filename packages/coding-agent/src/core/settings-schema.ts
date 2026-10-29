@@ -153,6 +153,20 @@ const PromptSettingsSchema = Type.Object({
 			default: SETTINGS_DEFAULTS.prompt.piDocs,
 		}),
 	),
+	environmentContext: Type.Optional(
+		Type.Boolean({
+			description:
+				"Send cwd and date as an environment-context message instead of inside system prompt (byte-stable prompt caching).",
+			default: SETTINGS_DEFAULTS.prompt.environmentContext,
+		}),
+	),
+	dynamicDiscipline: Type.Optional(
+		Type.Boolean({
+			description:
+				"Include dynamic discipline sections (intent gate, working task, verification, handoff) in the system prompt.",
+			default: SETTINGS_DEFAULTS.prompt.dynamicDiscipline,
+		}),
+	),
 });
 
 function codemodeMode(options?: TSchemaOptions) {

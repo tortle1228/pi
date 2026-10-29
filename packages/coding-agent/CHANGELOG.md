@@ -9,6 +9,8 @@
 - `pi.exec()` accepts a `maxBuffer` option that limits stdout and stderr combined, and its result has a `truncated` field that is true when output exceeded the limit ([#11360](https://github.com/earendil-works/pi/issues/11360))
 - Device-code login (for example GitHub Copilot) now opens the verification page and copies the code when you press Enter. Providers can turn either action off with `openBrowserOnConfirm: false` or `copyCodeOnConfirm: false` ([#9282](https://github.com/earendil-works/pi/issues/9282), [#9301](https://github.com/earendil-works/pi/pull/9301))
 - Added Antigravity to `/login` for Google subscriptions. It serves Gemini, Claude, and GPT-OSS models through Cloud Code Assist and only lists models the account can use. The provider ID is `google-antigravity`, and its default model is `gemini-3.8-flash-high`
+- Added `prompt.environmentContext`. The working directory and local date now reach the model as a hidden message folded into the next user message instead of the system prompt, so sessions started from different subdirectories share one cached system prompt. Set it to `false` to restore the `<cwd>` section. See [docs/settings.md](docs/settings.md)
+- Added `prompt.dynamicDiscipline`. The default system prompt now includes intent gate, working task, verification, and handoff sections; set it to `false` to omit them. See [docs/settings.md](docs/settings.md)
 
 ### Changed
 

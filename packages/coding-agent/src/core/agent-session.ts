@@ -79,6 +79,7 @@ import {
 	shouldCompact,
 } from "./compaction/index.ts";
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.ts";
+import { environmentContextMessageIfChanged, resolveEnvironmentContext } from "./environment-context.ts";
 import { exportSessionToHtml, type ToolHtmlRenderer } from "./export-html/index.ts";
 import { createToolHtmlRenderer } from "./export-html/tool-renderer.ts";
 import {
@@ -131,6 +132,7 @@ import {
 	SessionManager,
 	type SessionProjection,
 } from "./session-manager.ts";
+import { SETTINGS_DEFAULTS } from "./settings-defaults.ts";
 import {
 	applyToolModifiers,
 	type CacheWarmingMode,
@@ -310,6 +312,16 @@ export interface AgentSessionConfig {
 	extensionRunnerRef?: { current?: ExtensionRunner };
 	/** Session start event metadata emitted when extensions bind to this runtime. */
 	sessionStartEvent?: SessionStartEvent;
+	/**
+	 * Send cwd and date as an environment-context message instead of inside system prompt.
+	 * Default: true.
+	 */
+	environmentContext?: boolean;
+	/**
+	 * Include dynamic discipline sections (intent gate, working task, verification, handoff) in system prompt.
+	 * Default: true.
+	 */
+	dynamicDiscipline?: boolean;
 }
 
 export interface ExtensionBindings {
@@ -494,6 +506,24 @@ export class AgentSession {
 	private _baseSystemPromptOptions!: NormalizedBuildSystemPromptOptions;
 	/** Prompt options after before_agent_start mutations for the active run. */
 	private _runSystemPromptOptions?: NormalizedBuildSystemPromptOptions;
+	private readonly _environmentContextOverride?: boolean;
+	private readonly _dynamicDisciplineOverride?: boolean;
+
+	private get _environmentContextEnabled(): boolean {
+		return (
+			this._environmentContextOverride ??
+			this.settingsManager.getPromptSettings().environmentContext ??
+			SETTINGS_DEFAULTS.prompt.environmentContext
+		);
+	}
+
+	private get _dynamicDisciplineEnabled(): boolean {
+		return (
+			this._dynamicDisciplineOverride ??
+			this.settingsManager.getPromptSettings().dynamicDiscipline ??
+			SETTINGS_DEFAULTS.prompt.dynamicDiscipline
+		);
+	}
 
 	constructor(config: AgentSessionConfig) {
 		this.agent = config.agent;
@@ -520,6 +550,8 @@ export class AgentSession {
 		this._excludedTools = config.excludedToolNames ? createToolNameMatcher(config.excludedToolNames) : undefined;
 		this._baseToolsOverride = config.baseToolsOverride;
 		this._sessionStartEvent = config.sessionStartEvent ?? { type: "session_start", reason: "startup" };
+		this._environmentContextOverride = config.environmentContext;
+		this._dynamicDisciplineOverride = config.dynamicDiscipline;
 
 		// Always subscribe to agent events for internal handling
 		// (session persistence, extensions, auto-compaction, retry logic)
@@ -1760,6 +1792,8 @@ export class AgentSession {
 			customPrompt: loaderSystemPrompt,
 			appendSystemPrompt,
 			includeDocsSection: this.settingsManager.getPromptSettings().piDocs,
+			includeCwd: !this._environmentContextEnabled,
+			dynamicDiscipline: this._dynamicDisciplineEnabled,
 			selectedTools: validToolNames,
 			hiddenTools: [...this._hiddenDeclarations],
 			toolSnippets,
@@ -1964,6 +1998,16 @@ export class AgentSession {
 		if (!handlerEditedTools) result.systemPromptOptions.selectedTools = this.getActiveToolNames();
 
 		const messages: AgentMessage[] = [];
+		if (this._environmentContextEnabled) {
+			const envMessage = environmentContextMessageIfChanged(
+				this.agent.state.messages,
+				resolveEnvironmentContext(this._cwd),
+			);
+			if (envMessage) {
+				messages.push(envMessage);
+			}
+		}
+
 		if (trigger.messageType === "custom") {
 			messages.push(trigger.message);
 		} else {

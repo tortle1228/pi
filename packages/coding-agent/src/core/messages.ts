@@ -7,6 +7,7 @@
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
+import { ENVIRONMENT_CONTEXT_MESSAGE_TYPE, foldEnvironmentContextIntoNextUserMessage } from "./environment-context.ts";
 
 export const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:
 
@@ -146,7 +147,8 @@ export function createCustomMessage(
  * - Custom extensions and tools
  */
 export function convertToLlm(messages: AgentMessage[]): Message[] {
-	return messages
+	const environmentMessages = new Set<Message>();
+	const converted = messages
 		.map((m): Message | undefined => {
 			switch (m.role) {
 				case "bashExecution":
@@ -161,11 +163,15 @@ export function convertToLlm(messages: AgentMessage[]): Message[] {
 					};
 				case "custom": {
 					const content = typeof m.content === "string" ? [{ type: "text" as const, text: m.content }] : m.content;
-					return {
+					const convertedMsg: Message = {
 						role: "user",
 						content,
 						timestamp: m.timestamp,
 					};
+					if (m.customType === ENVIRONMENT_CONTEXT_MESSAGE_TYPE) {
+						environmentMessages.add(convertedMsg);
+					}
+					return convertedMsg;
 				}
 				case "branchSummary":
 					return {
@@ -193,4 +199,6 @@ export function convertToLlm(messages: AgentMessage[]): Message[] {
 			}
 		})
 		.filter((m) => m !== undefined);
+
+	return foldEnvironmentContextIntoNextUserMessage(converted, environmentMessages);
 }

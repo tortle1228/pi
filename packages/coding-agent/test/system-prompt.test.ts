@@ -49,7 +49,7 @@ describe("buildSystemPrompt", () => {
 			});
 
 			expect(defaultPrompt.startsWith("You are an expert coding assistant operating inside pi")).toBe(true);
-			expect(customPrompt.startsWith("You are Exact.\n\n<cwd>")).toBe(true);
+			expect(customPrompt).toBe("You are Exact.");
 		});
 
 		test("preserves an exact forced prompt without sections", () => {
@@ -70,7 +70,7 @@ describe("buildSystemPrompt", () => {
 			expect(prompt).toContain(
 				'<project_context>\nProject-specific instructions and guidelines:\n\n<project_instructions path="/tmp/AGENTS.md">',
 			);
-			expect(prompt).toContain("<cwd>\n/tmp\n</cwd>");
+			expect(prompt).not.toContain("<cwd>");
 		});
 	});
 

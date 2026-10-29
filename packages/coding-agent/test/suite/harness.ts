@@ -122,6 +122,16 @@ export interface HarnessOptions {
 	modelsJson?: Record<string, unknown>;
 	/** Session to continue, for example to test a resume. Default: a new in-memory session. */
 	sessionManager?: SessionManager;
+	/**
+	 * SDK override for the environment-context message. Default: unset, so `prompt.environmentContext`
+	 * applies; the harness defaults that setting to false for suite tests.
+	 */
+	environmentContext?: boolean;
+	/**
+	 * SDK override for the dynamic discipline sections. Default: unset, so `prompt.dynamicDiscipline`
+	 * applies; the harness defaults that setting to false for suite tests.
+	 */
+	dynamicDiscipline?: boolean;
 }
 
 export interface Harness {
@@ -161,7 +171,11 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 	const extensionRunnerRef: { current?: ExtensionRunner } = {};
 
 	const sessionManager = options.sessionManager ?? SessionManager.inMemory();
-	const settingsManager = SettingsManager.inMemory(options.settings);
+	// Suite tests predate these prompt features; keep them off unless a test opts in through settings.
+	const settingsManager = SettingsManager.inMemory({
+		...options.settings,
+		prompt: { environmentContext: false, dynamicDiscipline: false, ...options.settings?.prompt },
+	});
 
 	const authStorage = AuthStorage.inMemory();
 	if (withConfiguredAuth) {
@@ -244,6 +258,8 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		allowedToolNames: options.allowedToolNames,
 		excludedToolNames: options.excludedToolNames,
 		extensionRunnerRef,
+		environmentContext: options.environmentContext,
+		dynamicDiscipline: options.dynamicDiscipline,
 	});
 
 	const events: AgentSessionEvent[] = [];

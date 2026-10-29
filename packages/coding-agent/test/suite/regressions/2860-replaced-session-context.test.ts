@@ -27,6 +27,15 @@ function getText(message: AgentSession["messages"][number]): string {
 				.join("");
 }
 
+// A real session opens with a hidden environment-context message (senpi#2093); name custom messages by type.
+function transcript(session: AgentSession): string[] {
+	return session.messages
+		.filter((message) => message.role !== "system")
+		.map((message) =>
+			message.role === "custom" ? `custom:${message.customType}` : `${message.role}:${getText(message)}`,
+		);
+}
+
 describe("regression #2860: replaced session callbacks", () => {
 	const cleanups: Array<() => Promise<void> | void> = [];
 
@@ -201,11 +210,11 @@ describe("regression #2860: replaced session callbacks", () => {
 		expect(replacementSessionFile).not.toBe(oldSessionFile);
 		expect(staleCtxThrows).toBe(true);
 		expect(stalePiThrows).toBe(true);
-		expect(
-			runtime.session.messages
-				.filter((message) => message.role !== "system")
-				.map((message) => `${message.role}:${getText(message)}`),
-		).toEqual(["user:Hello from the new session!", "assistant:hello reply"]);
+		expect(transcript(runtime.session)).toEqual([
+			"custom:environment-context",
+			"user:Hello from the new session!",
+			"assistant:hello reply",
+		]);
 	});
 
 	it("supports withSession for fork", async () => {
@@ -233,11 +242,13 @@ describe("regression #2860: replaced session callbacks", () => {
 		await runtime.session.prompt("seed");
 		await runtime.session.prompt("/fork-it");
 
-		expect(
-			runtime.session.messages
-				.filter((message) => message.role !== "system")
-				.map((message) => `${message.role}:${getText(message)}`),
-		).toEqual(["user:seed", "assistant:seed reply", "user:fork callback message", "assistant:fork reply"]);
+		expect(transcript(runtime.session)).toEqual([
+			"custom:environment-context",
+			"user:seed",
+			"assistant:seed reply",
+			"user:fork callback message",
+			"assistant:fork reply",
+		]);
 	});
 
 	it("supports withSession for switchSession", async () => {
@@ -269,10 +280,12 @@ describe("regression #2860: replaced session callbacks", () => {
 		await runtime.session.prompt("/switch-it");
 
 		expect(runtime.session.sessionFile).toBe(targetSessionPath);
-		expect(
-			runtime.session.messages
-				.filter((message) => message.role !== "system")
-				.map((message) => `${message.role}:${getText(message)}`),
-		).toEqual(["user:target", "assistant:target reply", "user:switch callback message", "assistant:switch reply"]);
+		expect(transcript(runtime.session)).toEqual([
+			"custom:environment-context",
+			"user:target",
+			"assistant:target reply",
+			"user:switch callback message",
+			"assistant:switch reply",
+		]);
 	});
 });

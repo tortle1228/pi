@@ -4,6 +4,12 @@
 
 import { getSystemMessageText } from "@earendil-works/pi-ai";
 import { getDocsPath, getExamplesPath, getReadmePath } from "../config.ts";
+import {
+	buildHandoffSection,
+	buildIntentGate,
+	buildVerificationSection,
+	buildWorkingTaskSection,
+} from "./dynamic-prompt/index.ts";
 import { formatSkillsForPrompt, type Skill } from "./skills.ts";
 
 export interface BuildSystemPromptOptions {
@@ -36,6 +42,16 @@ export interface BuildSystemPromptOptions {
 	contextFiles?: Array<{ path: string; content: string }>;
 	/** Pre-loaded skills. */
 	skills?: Skill[];
+	/**
+	 * Include working directory in the system prompt.
+	 * Default: false (cwd travels in environment-context message for byte-stability).
+	 */
+	includeCwd?: boolean;
+	/**
+	 * Include dynamic discipline sections (intent gate, working task, verification, handoff).
+	 * Default: true.
+	 */
+	dynamicDiscipline?: boolean;
 }
 
 export type NormalizedBuildSystemPromptOptions = BuildSystemPromptOptions & {
@@ -49,6 +65,8 @@ export type NormalizedBuildSystemPromptOptions = BuildSystemPromptOptions & {
 	sections: Record<string, string>;
 	contextFiles: Array<{ path: string; content: string }>;
 	skills: Skill[];
+	includeCwd: boolean;
+	dynamicDiscipline: boolean;
 };
 
 /**
@@ -77,6 +95,8 @@ export function normalizeBuildSystemPromptOptions(input: BuildSystemPromptOption
 		cwd: input.cwd,
 		contextFiles: (input.contextFiles ?? []).map((file) => ({ ...file })),
 		skills: (input.skills ?? []).map((skill) => ({ ...skill })),
+		includeCwd: input.includeCwd ?? false,
+		dynamicDiscipline: input.dynamicDiscipline ?? true,
 	};
 }
 
@@ -175,6 +195,12 @@ export function buildSystemPromptSections(input: BuildSystemPromptOptions): Syst
 			visibleTools.length > 0 ? visibleTools.map((name) => `- ${name}: ${toolSnippets[name]}`).join("\n") : "(none)";
 		promptSections.tools = `${tools}\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.`;
 		promptSections.rules = buildRules(declaredTools, toolGuidelines, promptGuidelines);
+		if (options.dynamicDiscipline) {
+			promptSections.intent_gate = buildIntentGate(declaredTools);
+			promptSections.working_task = buildWorkingTaskSection();
+			promptSections.verification = buildVerificationSection();
+			promptSections.handoff = buildHandoffSection();
+		}
 		if (includeDocsSection) promptSections.docs = renderDocsSection();
 	}
 
@@ -189,7 +215,9 @@ export function buildSystemPromptSections(input: BuildSystemPromptOptions): Syst
 		const skillsPrompt = formatSkillsForPrompt(skills, skillFileReadTool).trim();
 		if (skillsPrompt) promptSections.skills = skillsPrompt;
 	}
-	promptSections.cwd = cwd.replace(/\\/g, "/");
+	if (options.includeCwd) {
+		promptSections.cwd = cwd.replace(/\\/g, "/");
+	}
 	for (const [name, content] of Object.entries(customSections)) {
 		if (content) promptSections[name] = content;
 	}

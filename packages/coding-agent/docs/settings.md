@@ -64,6 +64,8 @@ CLI tool options override this setting for one invocation. `--tools` with only `
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `prompt.piDocs` | boolean | `true` | Include the section that points at Pi's packaged documentation in the default system prompt. Set it to `false` to leave those pointers out of the prompt and provide them with a [skill](skills.md) instead, for example when a provider inspects the system prompt. `/reload` applies a change. |
+| `prompt.environmentContext` | boolean | `true` | Send the working directory and local date as a hidden message before the next user message instead of inside the system prompt, so the system prompt stays the same across directories. A new message is added only when a value changes. Set it to `false` to put the working directory back into the system prompt. |
+| `prompt.dynamicDiscipline` | boolean | `true` | Include the intent gate, working task, verification, and handoff sections in the default system prompt. Set it to `false` to leave them out. |
 
 ## Sessions and context
 
