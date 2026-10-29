@@ -418,6 +418,9 @@ export {
 export { createApplyPatchExtension, createApplyPatchTool } from "./extensions/apply-patch/index.ts";
 export { type CodemodeExtensionOptions, createCodemodeExtension } from "./extensions/codemode/index.ts";
 export type { CodemodeStoreEntryData, CodemodeToolDetails } from "./extensions/codemode/tool.ts";
+export { createJobsExtension, type JobsExtensionOptions } from "./extensions/jobs/index.ts";
+export type { JobSnapshot, JobStatus } from "./extensions/jobs/job-registry.ts";
+export type { JobToolDetails } from "./extensions/jobs/tool.ts";
 export type { LoadedMcpConfig, McpExposure, McpServerConfig, McpServerEntry } from "./extensions/mcp/config.ts";
 export { createMcpExtension, type McpExtensionOptions, type McpTransportFactory } from "./extensions/mcp/index.ts";
 export { createToolSearchExtension } from "./extensions/tool-search/index.ts";
