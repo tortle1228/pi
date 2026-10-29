@@ -7,7 +7,7 @@ Behavioral evals for Pi's coding agent, built with `vitest-evals`.
 Eval definitions are flat under `evals/`:
 
 - `*.docs.eval.ts` is a documentation-lift eval. `eval:docs` runs each case in isolated `without_docs` and `with_docs` containers and reports lift.
-- Other `*.eval.ts` files are host evals. `eval:host` runs the smoke suite; `eval:audit` runs the documentation audit. They are ordinary vitest-evals suites, not paired comparisons.
+- Other `*.eval.ts` files are host evals. `eval:host` runs the smoke suite; `eval:audit` runs the documentation audit; `eval:edit` runs the edit-format benchmark. They are ordinary vitest-evals suites, not paired comparisons.
 
 Runner code lives in `src/`:
 
@@ -16,6 +16,7 @@ Runner code lives in `src/`:
 - `plan.ts` expands cases into `(case, variant, repetition)` tasks
 - `report.ts` reads Vitest JSON, pairs arms, and computes lift
 - `harness.ts` is the vitest-evals adapter
+- `edit-format.ts` loads, samples, and grades the edit-format tasks; `edit-format-report.ts` summarizes their results
 
 Eval suites and their fixtures live under `evals/`. Image build files live in `docker/`.
 
@@ -41,6 +42,18 @@ Documentation audit:
 PI_PROVIDER=openai-codex PI_MODEL=gpt-5.6-sol \
   npm run eval:audit -w packages/evals
 ```
+
+## Run the edit-format benchmark
+
+`edit-format.eval.ts` measures how reliably a model applies exact edits with each `editMode`. Each task is a TypeScript file with injected bugs and a prompt naming the exact changes, from oh-my-pi's benchmark (see `evals/edit-format/NOTICE.md`); the agent gets `read`, `edit`, and `write`, and a task passes when the file equals the original afterwards.
+
+```bash
+PI_PROVIDER=anthropic PI_MODEL=claude-sonnet-5-5 PI_EVAL_EDIT_FORMAT=hashline \
+  npm run eval:edit -w packages/evals
+npm run eval:edit:report -w packages/evals
+```
+
+`PI_EVAL_EDIT_FORMAT` is `replace` (default) or `hashline`. `PI_EVAL_EDIT_TASKS` (default 30, at most 106) sets how many tasks run, picked evenly across mutation categories, so every model and format gets the same sample. Each run appends one line per task to `.eval/edit-format/results.jsonl`, including failed runs; the report counts the latest run of each task and prints exact and whitespace-normalized pass rates, edit calls, failed edits, how often `write` replaced the edit, and tokens per model and format. These runs call the selected model and spend tokens or subscription quota.
 
 ## Run documentation comparisons
 

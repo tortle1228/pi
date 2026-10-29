@@ -54,6 +54,8 @@ export type PiCodingAgentHarnessOptions = {
 	tools?: CreateAgentSessionOptions["tools"];
 	customTools?: CreateAgentSessionOptions["customTools"];
 	workspaceFiles?: Readonly<Record<string, string>>;
+	/** Settings for the isolated agent directory, written as its `settings.json`. */
+	settings?: Readonly<Record<string, unknown>>;
 	transformSystemPrompt?: (defaultPrompt: string) => string;
 	expectedPiDocumentation?: boolean;
 };
@@ -316,6 +318,9 @@ async function runPiCodingAgent<TOutput extends JsonValue>(
 		const modelRuntime = await ModelRuntime.create({ credentials });
 		await Promise.all([mkdir(workspace), mkdir(agentDir, { recursive: true })]);
 		await seedWorkspace(workspace, options.workspaceFiles);
+		if (options.settings) {
+			await writeFile(join(agentDir, "settings.json"), JSON.stringify(options.settings), { mode: 0o600 });
+		}
 		const model = modelRuntime.getModel(selection.provider, selection.id);
 		if (!model) throw new Error(`Eval model not found: ${selection.provider}/${selection.id}`);
 		const auth = await modelRuntime.getAuth(model);
