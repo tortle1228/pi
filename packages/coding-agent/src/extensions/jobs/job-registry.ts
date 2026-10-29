@@ -4,6 +4,7 @@
  */
 
 import type { WriteStream } from "node:fs";
+import { TextDecoder } from "node:util";
 import type { BashOperations } from "../../core/tools/bash.ts";
 import { SecretOutputRedactor } from "../../core/tools/secret-output-redactor.ts";
 import { truncateTail } from "../../core/tools/truncate.ts";
