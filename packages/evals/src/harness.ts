@@ -512,8 +512,6 @@ export function excludePiDocumentation(defaultPrompt: string): string {
 	if (documentationStart === -1) throw new Error("Default Pi system prompt has no Pi documentation section.");
 	const documentationEnd = defaultPrompt.indexOf(documentationEndMarker, documentationStart);
 	if (documentationEnd === -1) throw new Error("Default Pi system prompt has no complete Pi documentation section.");
-	const cwdStart = defaultPrompt.lastIndexOf("\n<cwd>\n");
-	if (cwdStart < documentationEnd) throw new Error("Default Pi system prompt has no working-directory section.");
 	return (
 		defaultPrompt.slice(0, documentationStart) + defaultPrompt.slice(documentationEnd + documentationEndMarker.length)
 	);
