@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { bashToolSystemPromptContribution, createBashToolDefinition } from "../src/core/tools/bash.ts";
 import { createEditToolDefinition, editToolSystemPromptContribution } from "../src/core/tools/edit.ts";
+import {
+	createHashlineEditToolDefinition,
+	hashlineEditToolSystemPromptContribution,
+} from "../src/core/tools/edit-hashline.ts";
 import { createFindToolDefinition, findToolSystemPromptContribution } from "../src/core/tools/find.ts";
 import { createGrepToolDefinition, grepToolSystemPromptContribution } from "../src/core/tools/grep.ts";
 import { createLsToolDefinition, lsToolSystemPromptContribution } from "../src/core/tools/ls.ts";
@@ -16,6 +20,7 @@ const cases = [
 	["bash", bashToolSystemPromptContribution, createBashToolDefinition],
 	["powershell", powershellToolSystemPromptContribution, createPowerShellToolDefinition],
 	["edit", editToolSystemPromptContribution, createEditToolDefinition],
+	["edit (hashline)", hashlineEditToolSystemPromptContribution, createHashlineEditToolDefinition],
 	["write", writeToolSystemPromptContribution, createWriteToolDefinition],
 	["grep", grepToolSystemPromptContribution, createGrepToolDefinition],
 	["find", findToolSystemPromptContribution, createFindToolDefinition],

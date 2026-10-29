@@ -41,8 +41,11 @@ See [Choose a Model](models.md) for model selection and thinking controls.
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `defaultTools` | `string[]` | `read`, `bash`, `edit`, `write` | Tools enabled at startup. Plain names replace the defaults; `+name` adds a tool and `-name` removes one. An empty array disables all built-in tools but not extension or SDK tools. |
+| `editMode` | `"replace"` \| `"hashline"` | `"replace"` | How `edit` addresses text. `replace`: by exact old text. `hashline`: by line tags, see below. |
 | `codemode.mode` | `"on"` \| `"only"` | `"on"` | How the `codemode` tool presents tools while it is active. `on`: declared tools get a note on calling them from scripts appended to their description, and `codemode` lists only tools that are not declared. `only`: `codemode` lists every tool scripts can call, and active built-in and extension tools are hidden from the model, so it reaches them through `codemode`. |
 | `codemode.inlineBudget` | number | `3000` | Estimated tokens (characters / 4) the `codemode` tool's description may spend on tool declarations. Tools that do not fit are left out and found with `searchTools()`. `0` lists only namespaces. |
+
+With `"editMode": "hashline"`, `read` and `grep` show each line with a tag of its line number and a two-letter hash of its content, such as `12#kq|const a = 1;` and `src/a.ts:12#kq: const a = 1;`, and `edit` takes `edits` of `start` and `end` tags, or `start` and `insert: "before"` or `"after"`, with the new lines in `newText`. The model then does not repeat old text, and an edit whose tags no longer match the file is rejected with the current lines and fresh tags, before anything is written. The edit result shows the changed lines with their new tags. The mode applies when tools are created, so change it before starting a session or use `/reload`.
 
 Available built-in tools are `read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, and `ls`. `defaultTools` can also name `codemode` and `tool_search`, which built-in extensions register inactive, and other extension tools registered inactive.
 

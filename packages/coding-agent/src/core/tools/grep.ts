@@ -7,6 +7,7 @@ import type { ExtensionContext, ToolDefinition } from "../extensions/types.ts";
 import type { GrepEngine, GrepHit, GrepMode } from "./grep-engine.ts";
 import { createNativeGrepEngine } from "./grep-native-engine.ts";
 import { createRgGrepEngine } from "./grep-rg-engine.ts";
+import { lineTag } from "./hashline.ts";
 import { resolveToCwd } from "./path-utils.ts";
 import { grepRenderers } from "./renderers/grep.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -90,6 +91,8 @@ export interface GrepToolOptions {
 	operations?: GrepOperations;
 	/** Search engine. Default: the native engine when it is built for this platform, otherwise ripgrep */
 	engine?: GrepEngine;
+	/** Show each line number as a hashline tag, such as `a.ts:12#kq: text`, for the hashline edit. Default: false */
+	hashline?: boolean;
 }
 
 /** The native engine when its addon loads, otherwise ripgrep. `PI_GREP_ENGINE=rg` forces ripgrep. */
@@ -154,6 +157,7 @@ export function createGrepToolDefinition(
 			}
 
 			const formatter = createHitFormatter({
+				hashline: options?.hashline ?? false,
 				ops,
 				formatPath: createPathFormatter(searchPaths, directoryFlags, workingDir),
 				context: params.context && params.context > 0 ? params.context : 0,
@@ -215,11 +219,15 @@ function createPathFormatter(
 
 /** Turns hits into output lines, reading files for context lines and recording whether any line was truncated. */
 function createHitFormatter(options: {
+	hashline: boolean;
 	ops: GrepOperations;
 	formatPath: (filePath: string) => string;
 	context: number;
 }): { format(hit: GrepHit): Promise<string[]>; linesTruncated(): boolean } {
 	const { ops, formatPath, context } = options;
+	// The tag hashes the line as the file has it, before truncation and before lone CRs are removed for display.
+	const label = (lineNumber: number, rawText: string): string =>
+		options.hashline ? lineTag(lineNumber, rawText) : String(lineNumber);
 	const fileCache = new Map<string, string[]>();
 	let linesTruncated = false;
 
@@ -251,10 +259,12 @@ function createHitFormatter(options: {
 		const start = Math.max(1, firstLine - context);
 		const end = Math.min(lines.length, lastLine + context);
 		for (let current = start; current <= end; current++) {
+			const rawText = lines[current - 1] ?? "";
 			// Truncate long lines so grep output stays compact.
-			const text = truncate((lines[current - 1] ?? "").replace(/\r/g, ""));
+			const text = truncate(rawText.replace(/\r/g, ""));
+			const tag = label(current, rawText);
 			const isMatchLine = current >= firstLine && current <= lastLine;
-			block.push(isMatchLine ? `${relativePath}:${current}: ${text}` : `${relativePath}-${current}- ${text}`);
+			block.push(isMatchLine ? `${relativePath}:${tag}: ${text}` : `${relativePath}-${tag}- ${text}`);
 		}
 		return block;
 	};
@@ -264,11 +274,14 @@ function createHitFormatter(options: {
 			if (hit.type === "file") return [formatPath(hit.filePath)];
 			if (hit.type === "count") return [`${formatPath(hit.filePath)}:${hit.count}`];
 			// The engine reports the matched text; a multiline match spans several lines.
-			const matchLines = hit.lineText?.replace(/\r\n/g, "\n").replace(/\r/g, "").replace(/\n$/, "").split("\n");
+			const matchLines = hit.lineText?.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
 			const lastLine = hit.lineNumber + (matchLines?.length ?? 1) - 1;
 			if (context > 0 || matchLines === undefined) return formatBlock(hit.filePath, hit.lineNumber, lastLine);
 			const relativePath = formatPath(hit.filePath);
-			return matchLines.map((text, index) => `${relativePath}:${hit.lineNumber + index}: ${truncate(text)}`);
+			return matchLines.map(
+				(rawText, index) =>
+					`${relativePath}:${label(hit.lineNumber + index, rawText)}: ${truncate(rawText.replace(/\r/g, ""))}`,
+			);
 		},
 		linesTruncated: () => linesTruncated,
 	};

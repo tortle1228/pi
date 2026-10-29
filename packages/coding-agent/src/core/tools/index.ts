@@ -17,6 +17,11 @@ export {
 	type EditToolInput,
 	type EditToolOptions,
 } from "./edit.ts";
+export {
+	createHashlineEditTool,
+	createHashlineEditToolDefinition,
+	type HashlineEditToolInput,
+} from "./edit-hashline.ts";
 export { withFileMutationQueue } from "./file-mutation-queue.ts";
 export {
 	createFindTool,
@@ -85,6 +90,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ToolDefinition } from "../extensions/types.ts";
 import { type BashToolOptions, createBashTool, createBashToolDefinition } from "./bash.ts";
 import { createEditTool, createEditToolDefinition, type EditToolOptions } from "./edit.ts";
+import { createHashlineEditTool, createHashlineEditToolDefinition } from "./edit-hashline.ts";
 import { createFindTool, createFindToolDefinition, type FindToolOptions } from "./find.ts";
 import { createGrepTool, createGrepToolDefinition, type GrepToolOptions } from "./grep.ts";
 import { createLsTool, createLsToolDefinition, type LsToolOptions } from "./ls.ts";
@@ -115,22 +121,43 @@ export interface ToolsOptions {
 	grep?: GrepToolOptions;
 	find?: FindToolOptions;
 	ls?: LsToolOptions;
+	/**
+	 * How `edit` addresses text. `replace` (default): by exact old text. `hashline`: by the line tags that `read` and
+	 * `grep` then show, such as `12#kq`.
+	 */
+	editMode?: EditMode;
 }
+
+export type EditMode = "replace" | "hashline";
+
+const readOptions = (options: ToolsOptions | undefined): ReadToolOptions | undefined =>
+	options?.editMode === "hashline" ? { ...options.read, hashline: true } : options?.read;
+
+const grepOptions = (options: ToolsOptions | undefined): GrepToolOptions | undefined =>
+	options?.editMode === "hashline" ? { ...options.grep, hashline: true } : options?.grep;
+
+const createEditDefinition = (cwd: string, options: ToolsOptions | undefined): ToolDef =>
+	options?.editMode === "hashline"
+		? createHashlineEditToolDefinition(cwd, options.edit)
+		: createEditToolDefinition(cwd, options?.edit);
+
+const createEditAgentTool = (cwd: string, options: ToolsOptions | undefined): Tool =>
+	options?.editMode === "hashline" ? createHashlineEditTool(cwd, options.edit) : createEditTool(cwd, options?.edit);
 
 export function createToolDefinition(toolName: ToolName, cwd: string, options?: ToolsOptions): ToolDef {
 	switch (toolName) {
 		case "read":
-			return createReadToolDefinition(cwd, options?.read);
+			return createReadToolDefinition(cwd, readOptions(options));
 		case "bash":
 			return createBashToolDefinition(cwd, options?.bash);
 		case "powershell":
 			return createPowerShellToolDefinition(cwd, options?.powershell);
 		case "edit":
-			return createEditToolDefinition(cwd, options?.edit);
+			return createEditDefinition(cwd, options);
 		case "write":
 			return createWriteToolDefinition(cwd, options?.write);
 		case "grep":
-			return createGrepToolDefinition(cwd, options?.grep);
+			return createGrepToolDefinition(cwd, grepOptions(options));
 		case "find":
 			return createFindToolDefinition(cwd, options?.find);
 		case "ls":
@@ -143,17 +170,17 @@ export function createToolDefinition(toolName: ToolName, cwd: string, options?: 
 export function createTool(toolName: ToolName, cwd: string, options?: ToolsOptions): Tool {
 	switch (toolName) {
 		case "read":
-			return createReadTool(cwd, options?.read);
+			return createReadTool(cwd, readOptions(options));
 		case "bash":
 			return createBashTool(cwd, options?.bash);
 		case "powershell":
 			return createPowerShellTool(cwd, options?.powershell);
 		case "edit":
-			return createEditTool(cwd, options?.edit);
+			return createEditAgentTool(cwd, options);
 		case "write":
 			return createWriteTool(cwd, options?.write);
 		case "grep":
-			return createGrepTool(cwd, options?.grep);
+			return createGrepTool(cwd, grepOptions(options));
 		case "find":
 			return createFindTool(cwd, options?.find);
 		case "ls":
@@ -165,17 +192,17 @@ export function createTool(toolName: ToolName, cwd: string, options?: ToolsOptio
 
 export function createCodingToolDefinitions(cwd: string, options?: ToolsOptions): ToolDef[] {
 	return [
-		createReadToolDefinition(cwd, options?.read),
+		createReadToolDefinition(cwd, readOptions(options)),
 		createBashToolDefinition(cwd, options?.bash),
-		createEditToolDefinition(cwd, options?.edit),
+		createEditDefinition(cwd, options),
 		createWriteToolDefinition(cwd, options?.write),
 	];
 }
 
 export function createReadOnlyToolDefinitions(cwd: string, options?: ToolsOptions): ToolDef[] {
 	return [
-		createReadToolDefinition(cwd, options?.read),
-		createGrepToolDefinition(cwd, options?.grep),
+		createReadToolDefinition(cwd, readOptions(options)),
+		createGrepToolDefinition(cwd, grepOptions(options)),
 		createFindToolDefinition(cwd, options?.find),
 		createLsToolDefinition(cwd, options?.ls),
 	];
@@ -183,12 +210,12 @@ export function createReadOnlyToolDefinitions(cwd: string, options?: ToolsOption
 
 export function createAllToolDefinitions(cwd: string, options?: ToolsOptions): Record<ToolName, ToolDef> {
 	return {
-		read: createReadToolDefinition(cwd, options?.read),
+		read: createReadToolDefinition(cwd, readOptions(options)),
 		bash: createBashToolDefinition(cwd, options?.bash),
 		powershell: createPowerShellToolDefinition(cwd, options?.powershell),
-		edit: createEditToolDefinition(cwd, options?.edit),
+		edit: createEditDefinition(cwd, options),
 		write: createWriteToolDefinition(cwd, options?.write),
-		grep: createGrepToolDefinition(cwd, options?.grep),
+		grep: createGrepToolDefinition(cwd, grepOptions(options)),
 		find: createFindToolDefinition(cwd, options?.find),
 		ls: createLsToolDefinition(cwd, options?.ls),
 	};
@@ -196,17 +223,17 @@ export function createAllToolDefinitions(cwd: string, options?: ToolsOptions): R
 
 export function createCodingTools(cwd: string, options?: ToolsOptions): Tool[] {
 	return [
-		createReadTool(cwd, options?.read),
+		createReadTool(cwd, readOptions(options)),
 		createBashTool(cwd, options?.bash),
-		createEditTool(cwd, options?.edit),
+		createEditAgentTool(cwd, options),
 		createWriteTool(cwd, options?.write),
 	];
 }
 
 export function createReadOnlyTools(cwd: string, options?: ToolsOptions): Tool[] {
 	return [
-		createReadTool(cwd, options?.read),
-		createGrepTool(cwd, options?.grep),
+		createReadTool(cwd, readOptions(options)),
+		createGrepTool(cwd, grepOptions(options)),
 		createFindTool(cwd, options?.find),
 		createLsTool(cwd, options?.ls),
 	];
@@ -214,12 +241,12 @@ export function createReadOnlyTools(cwd: string, options?: ToolsOptions): Tool[]
 
 export function createAllTools(cwd: string, options?: ToolsOptions): Record<ToolName, Tool> {
 	return {
-		read: createReadTool(cwd, options?.read),
+		read: createReadTool(cwd, readOptions(options)),
 		bash: createBashTool(cwd, options?.bash),
 		powershell: createPowerShellTool(cwd, options?.powershell),
-		edit: createEditTool(cwd, options?.edit),
+		edit: createEditAgentTool(cwd, options),
 		write: createWriteTool(cwd, options?.write),
-		grep: createGrepTool(cwd, options?.grep),
+		grep: createGrepTool(cwd, grepOptions(options)),
 		find: createFindTool(cwd, options?.find),
 		ls: createLsTool(cwd, options?.ls),
 	};

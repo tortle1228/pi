@@ -371,6 +371,13 @@ export const SettingsSchema = Type.Object(
 					"Initial tool selection. Plain names replace the inherited selection; +name and -name entries add or remove tools.",
 			}),
 		),
+		editMode: Type.Optional(
+			Type.Union([Type.Literal("replace"), Type.Literal("hashline")], {
+				description:
+					'How the edit tool addresses text. "replace": by exact old text. "hashline": by the line tags that read and grep then show, such as 12#kq.',
+				default: SETTINGS_DEFAULTS.editMode,
+			}),
+		),
 		doubleEscapeAction: Type.Optional(
 			Type.Union([Type.Literal("fork"), Type.Literal("tree"), Type.Literal("none")], {
 				description: "Action for double-escape with an empty editor.",

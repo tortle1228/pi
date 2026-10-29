@@ -500,6 +500,20 @@
       },
       "description": "Initial tool selection. Plain names replace the inherited selection; +name and -name entries add or remove tools."
     },
+    "editMode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "replace"
+        },
+        {
+          "type": "string",
+          "const": "hashline"
+        }
+      ],
+      "description": "How the edit tool addresses text. \"replace\": by exact old text. \"hashline\": by the line tags that read and grep then show, such as 12#kq.",
+      "default": "replace"
+    },
     "doubleEscapeAction": {
       "anyOf": [
         {
