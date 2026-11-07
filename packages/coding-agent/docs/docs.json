@@ -99,6 +99,14 @@
             {
               "title": "Connect MCP Servers",
               "path": "mcp.md"
+            },
+            {
+              "title": "Search the Web",
+              "path": "web-search.md"
+            },
+            {
+              "title": "Share Claude Code Memory",
+              "path": "claude-memory.md"
             }
           ]
         },
