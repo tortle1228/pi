@@ -222,6 +222,22 @@ export CLOUDFLARE_ACCOUNT_ID=...
 
 The account ID can also be stored in the credential's `env` object.
 
+### Antigravity
+
+Antigravity uses a Google subscription for Gemini, Claude, and GPT-OSS models through Google Cloud Code Assist. Run `/login` and select **Antigravity**; the provider ID in `auth.json`, `models.json`, and model references is `google-antigravity`.
+
+```bash
+/login antigravity
+```
+
+Pi stores the OAuth credential under the `google-antigravity` key in `auth.json`. The managed Cloud Code project is resolved during login, and the account's available model IDs are recorded so the model selector only lists what the subscription can use.
+
+Set `PI_AI_ANTIGRAVITY_VERSION` to override the Antigravity Hub version Pi reports when Google updates the client gate:
+
+```bash
+export PI_AI_ANTIGRAVITY_VERSION=2.24.0
+```
+
 ### Google Vertex AI
 
 Use a Google Cloud API key:

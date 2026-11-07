@@ -71,6 +71,7 @@ export type KnownApi =
 	| "bedrock-converse-stream"
 	| "google-generative-ai"
 	| "google-vertex"
+	| "google-antigravity"
 	| "pi-messages";
 
 export type Api = KnownApi | (string & {});
@@ -93,6 +94,7 @@ export type KnownProvider =
 	| "anthropic"
 	| "google"
 	| "google-vertex"
+	| "google-antigravity"
 	| "openai"
 	| "azure"
 	| "openai-codex"
@@ -874,6 +876,12 @@ export interface Model<TApi extends Api> extends BaseModel<TApi> {
 	 * Missing keys use provider defaults. null marks a level as unsupported.
 	 */
 	thinkingLevelMap?: ThinkingLevelMap;
+	/**
+	 * Provider model IDs to request for each pi thinking level when one catalog
+	 * entry stands for several effort variants (for example `-low` and `-high`).
+	 * Levels without an entry use `id`.
+	 */
+	thinkingLevelModelIds?: Partial<Record<ModelThinkingLevel, string>>;
 	/** Prompt cache lifetimes per retention tier. Unset when the provider's cache behavior is unknown. */
 	promptCache?: ModelPromptCache;
 	contextWindow: number;

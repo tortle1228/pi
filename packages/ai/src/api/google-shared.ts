@@ -1,5 +1,6 @@
 /**
- * Shared utilities for Google Generative AI and Google Vertex providers.
+ * Shared utilities for Google Generative AI, Google Vertex, and Google
+ * Antigravity providers.
  */
 
 import {
@@ -27,7 +28,7 @@ import { collapseSystemMessages, withoutInitialSystemMessage } from "../utils/tr
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.ts";
 import { transformMessages } from "./transform-messages.ts";
 
-type GoogleApiType = "google-generative-ai" | "google-vertex";
+type GoogleApiType = "google-generative-ai" | "google-vertex" | "google-antigravity";
 
 /**
  * Thinking level for Gemini 3 models.

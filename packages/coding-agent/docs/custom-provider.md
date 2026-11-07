@@ -165,7 +165,7 @@ Publish persisted catalog data only when it should survive across runs. A live s
 
 Use one of Pi AI’s API implementations whenever the provider protocol matches it.
 
-Supported implementations cover Anthropic Messages, OpenAI Chat Completions and Responses, Google Generative AI and Vertex, Azure OpenAI Responses, Mistral Conversations, and Bedrock Converse.
+Supported implementations cover Anthropic Messages, OpenAI Chat Completions and Responses, Google Generative AI, Vertex, and Antigravity, Azure OpenAI Responses, Mistral Conversations, and Bedrock Converse.
 
 The provider can still customize authentication, base URLs, headers, model filtering, and discovery while delegating request conversion and streaming to an existing API implementation.
 
