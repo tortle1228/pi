@@ -154,7 +154,7 @@ Built-in extensions add `tasks` (on by default), `web_search` (on when the selec
 |---|---|
 | `codemode` | Run JavaScript that calls the other tools, for example in parallel with `Promise.allSettled`; only the script's output reaches the model |
 | `tool_search` | Search tools that are not declared to the model (`codemode` and `deferred` exposure, such as MCP tools) and declare the matches for the next call |
-| `web_search` | Search the web with the selected Z.AI or OpenAI provider and return source links |
+| `web_search` | Search the web with the selected Z.AI, OpenAI, or Anthropic provider and return source links |
 
 ### Enable codemode
 

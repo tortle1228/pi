@@ -1,5 +1,6 @@
 // Provider dispatch and the contract implemented by search backends.
 import type { ExtensionContext } from "../../core/extensions/types.ts";
+import { searchAnthropic } from "./anthropic.ts";
 import { searchOpenAI } from "./openai.ts";
 import { loadZaiSearch } from "./zai.lazy.ts";
 
@@ -16,6 +17,7 @@ const backends: Readonly<Record<string, SearchBackend>> = {
 	zai: { search: async (query, ctx, signal) => (await loadZaiSearch()).searchZai(query, ctx, signal) },
 	openai: { search: searchOpenAI },
 	"openai-codex": { search: searchOpenAI },
+	anthropic: { search: searchAnthropic },
 };
 
 /** Select a search backend by provider ID, never by model name or URL. */

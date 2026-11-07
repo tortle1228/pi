@@ -70,6 +70,9 @@ describe("provider-aware web_search", () => {
 		expect(h.active()).toEqual(["read", "bash", "web_search"]);
 		h.emit("model_select", context("openai-codex"));
 		expect(h.active()).toEqual(["read", "bash", "web_search"]);
+		h.emit("model_select", context("anthropic"));
+		expect(h.active()).toEqual(["read", "bash", "web_search"]);
+		expect(getSearchBackend("anthropic")).toBeDefined();
 		h.emit("model_select", context("zai"));
 		expect(h.active()).toEqual(["read", "bash", "web_search"]);
 		h.emit("model_select", context());
@@ -78,7 +81,7 @@ describe("provider-aware web_search", () => {
 
 	it("does not activate unsupported providers, including inherited object keys", () => {
 		const h = harness();
-		for (const provider of [undefined, "anthropic", "zai-coding-cn", "toString", "__proto__"]) {
+		for (const provider of [undefined, "google", "zai-coding-cn", "toString", "__proto__"]) {
 			h.emit("session_start", context(provider));
 			expect(h.active()).toEqual(["read", "bash"]);
 			expect(getSearchBackend(provider)).toBeUndefined();
@@ -159,9 +162,7 @@ describe("provider-aware web_search", () => {
 		const h = harness();
 		h.emit("session_start", context("zai"));
 		h.disable();
-		await expect(
-			h.tool.execute("id", { query: "hello" }, undefined, undefined, context("anthropic")),
-		).rejects.toThrow();
+		await expect(h.tool.execute("id", { query: "hello" }, undefined, undefined, context("google"))).rejects.toThrow();
 		expect(h.active()).toEqual(["read", "bash"]);
 		h.emit("model_select", context("zai"));
 		expect(h.active()).toContain("web_search");
@@ -170,9 +171,9 @@ describe("provider-aware web_search", () => {
 	it("checks the provider at execution rather than using the last activation", async () => {
 		const h = harness();
 		h.emit("session_start", context("zai"));
-		await expect(
-			h.tool.execute("id", { query: "hello" }, undefined, undefined, context("anthropic")),
-		).rejects.toThrow(/not supported.*anthropic/);
+		await expect(h.tool.execute("id", { query: "hello" }, undefined, undefined, context("google"))).rejects.toThrow(
+			/not supported.*google/,
+		);
 	});
 
 	it("rejects blank queries and missing authentication before network access", async () => {
