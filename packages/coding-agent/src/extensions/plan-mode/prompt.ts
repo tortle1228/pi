@@ -1,3 +1,10 @@
+// Codex runs these instructions inside an OS sandbox. Pi has none, so this states what its bash policy does.
+export const PLAN_MODE_BASH_NOTES = `## Bash in this environment
+
+* Known read-only commands run right away, and you may combine them with pipes, \`&&\`, \`||\`, and \`;\`.
+* Any other command, such as a test or build, asks the user for approval first. Request one only when its result would change the plan.
+* If the user denies a command, do not retry it.`;
+
 // Codex CLI Plan Mode instructions, verbatim. Codex 0.16x keeps them free of update_plan guidance.
 export const PLAN_MODE_INSTRUCTIONS = `# Plan Mode (Conversational)
 

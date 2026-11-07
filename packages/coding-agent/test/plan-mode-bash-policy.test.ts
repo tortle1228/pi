@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSafeCommand } from "../src/extensions/plan-mode/bash-policy.ts";
+import { toSafeCommand } from "../src/extensions/plan-mode/bash-policy.ts";
 
 describe("Plan mode bash policy", () => {
 	it.each([
@@ -12,8 +12,38 @@ describe("Plan mode bash policy", () => {
 		"ls /tmp 2>/dev/null",
 		"cat 'a file.txt'",
 		"git diff --no-ext-diff --no-textconv",
+		"git diff",
+		"ls && node -v",
+		"ls 2>/dev/null; ls",
+		"cat a | wc",
+		'rg -n "a|b" f',
+		'rg -n "^x (a|b)" f',
+		"rg -n 'a;b > c' f",
+		'rg -n "a\\"b" f',
+		"rg -o -A 45 --no-filename x f",
+		"git -C /x status --short --branch",
+		"git -C ~/x remote -v",
+		"ls -R ~/.pi",
+		"ls ~",
+		"git log --oneline -8 | head -20",
+		"git show HEAD~3",
+		"git branch -a",
+		"git branch --contains abc",
+		"git tag --list",
+		"git stash list",
+		"git cat-file -p HEAD",
+		"diff -u a b",
+		"find . -name '*.ts'",
+		"sed -n '5,10p' f",
+		"sort -rn -k2 a",
+		"uniq -c",
+		"uv --version",
+		"python3 --version",
+		"head -5 f",
+		"uniq -c a",
+		"cat a | uniq -",
 	])("allows %s", (command) => {
-		expect(isSafeCommand(command)).toBe(true);
+		expect(toSafeCommand(command)).toBeDefined();
 	});
 
 	it.each([
@@ -21,8 +51,6 @@ describe("Plan mode bash policy", () => {
 		"npm install foo",
 		"echo text > file",
 		"ls; touch file",
-		"ls && node -v",
-		"cat a | wc",
 		"cat $(touch x)",
 		"cat `touch x`",
 		"cat a\nls",
@@ -30,13 +58,74 @@ describe("Plan mode bash policy", () => {
 		"find . -delete",
 		"awk 'BEGIN {system(\"touch x\")}'",
 		"curl -o file https://example.com",
-		"git diff",
 		"git status --short; touch x",
 		"ls 2>/tmp/error",
-		"ls 2>/dev/null; ls",
 		"cat 'unclosed",
 		"node --version extra",
+		"cat a | sh",
+		"rg -nz x",
+		"rg --pre=x y",
+		'"rm" file',
+		"/bin/rm file",
+		"FOO=1 ls",
+		"sort -o f a",
+		"sort --outp=f a",
+		"git diff --outp=f",
+		"git log --ext-diff",
+		"git show --textconv",
+		"git grep -Oless x",
+		"git grep --open-files-in-pager x",
+		"git -c core.pager=x log",
+		"git --git-dir=x log",
+		"git commit -m x",
+		"git branch new",
+		"git branch -v new",
+		"git branch -d old",
+		"git tag v1",
+		"git remote add x y",
+		"git stash",
+		"find . -exec rm {} ;",
+		"find . -fprint f",
+		"fd -x rm",
+		"ls *",
+		"ls ~root",
+		"sed -n 'w f' a",
+		"sed -i 1d a",
+		"tail -f a",
+		"tail --fol a",
+		"tail --f a",
+		"uniq a b",
+		"echo a | uniq - out",
+		"uniq -- - out",
+		"echo 'code' | python3 -v",
+		"python -version",
+		"uv -v",
+		"date -s tomorrow",
+		"date --s=tomorrow",
+		'echo "$(touch x)"',
+		'echo "`touch x`"',
+		"ls &",
+		"ls &&",
+		"ls ;; pwd",
+		"ls |& cat",
+		"(ls)",
+		"ls # comment",
+		"",
 	])("rejects %s", (command) => {
-		expect(isSafeCommand(command)).toBe(false);
+		expect(toSafeCommand(command)).toBeUndefined();
+	});
+
+	it("keeps non-git commands as written", () => {
+		expect(toSafeCommand("  rg -n 'a|b'  f 2>/dev/null | head -5 ")).toBe("rg -n 'a|b' f 2>/dev/null | head -5");
+	});
+
+	it("turns off repository-configured helpers in every git segment", () => {
+		const prefix = "git --no-pager --no-optional-locks -c core.fsmonitor=false";
+		expect(toSafeCommand("git -C /x log -3 | head")).toBe(
+			`${prefix} -C /x log --no-ext-diff --no-textconv -3 | head`,
+		);
+		expect(toSafeCommand("git status && git --no-pager blame f")).toBe(
+			`${prefix} status && ${prefix} blame --no-textconv f`,
+		);
 	});
 });

@@ -1,16 +1,27 @@
 // Plan mode behavior: tool restrictions, the Plan Mode instructions, and the menu after a proposed plan.
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AgentMode } from "../../core/agent-mode.ts";
-import type { ExtensionAPI, ExtensionContext } from "../../core/extensions/types.ts";
+import { type ExtensionAPI, type ExtensionContext, isToolCallEventType } from "../../core/extensions/types.ts";
 import type { SessionEntry } from "../../core/session-manager.ts";
-import { isSafeCommand } from "./bash-policy.ts";
+import { toSafeCommand } from "./bash-policy.ts";
 import { PlanMenu, type PlanMenuChoice } from "./plan-menu.ts";
-import { PLAN_MODE_INSTRUCTIONS } from "./prompt.ts";
+import { PLAN_MODE_BASH_NOTES, PLAN_MODE_INSTRUCTIONS } from "./prompt.ts";
 import { extractProposedPlan, renderProposedPlanMarkdown } from "./proposed-plan.ts";
 
-const INSPECTION_TOOLS = new Set(["read", "bash", "grep", "find", "ls", "request_user_input", "web_search"]);
+const INSPECTION_TOOLS = new Set([
+	"read",
+	"bash",
+	"grep",
+	"find",
+	"ls",
+	"request_user_input",
+	"web_search",
+	"tool_search",
+]);
 const ALWAYS_ACTIVE_IN_PLAN = ["read", "bash", "grep", "find", "ls", "request_user_input"];
-const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "tool_search", "todo", "tasks"]);
+const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "todo", "tasks"]);
+const ALLOW_ONCE = "Allow once";
+const ALLOW_FOR_SESSION = "Allow this exact command for this session";
 
 const TOOLS_ENTRY = "plan-mode-tools";
 // Entries of the retired pi-extensions plan-mode package, read so its sessions get their tools back.
@@ -67,6 +78,7 @@ export default function planMode(pi: ExtensionAPI): void {
 	let toolChanges: ToolChanges = { suppressed: [], added: [] };
 	let planForFreshSession: string | undefined;
 	let closeMenu: (() => void) | undefined;
+	const approvedCommands = new Set<string>();
 
 	pi.registerFlag("plan-readonly-tools", {
 		description: "Comma-separated exact names of additional verified read-only tools",
@@ -84,7 +96,8 @@ export default function planMode(pi: ExtensionAPI): void {
 		if (NEVER_READ_ONLY.has(name)) return false;
 		if (INSPECTION_TOOLS.has(name)) return true;
 		const tool = pi.getAllTools().find((candidate) => candidate.name === name);
-		return extraReadOnlyTools().includes(name) && !!tool && !tool.reachesTools;
+		if (!tool || tool.reachesTools) return false;
+		return extraReadOnlyTools().includes(name) || tool.annotations?.readOnlyHint === true;
 	}
 
 	function saveToolChanges(next: ToolChanges): void {
@@ -92,12 +105,21 @@ export default function planMode(pi: ExtensionAPI): void {
 		pi.appendEntry(TOOLS_ENTRY, toolChanges);
 	}
 
-	function syncTools(): void {
+	/** Whether tool_search can activate this tool, which also means it can do so again. */
+	function isSearchable(name: string): boolean {
+		const exposure = pi.getAllTools().find((tool) => tool.name === name)?.exposure;
+		return exposure === "deferred" || exposure === "codemode";
+	}
+
+	function syncTools(duringRun = false): void {
 		const active = pi.getActiveTools();
 		const { suppressed, added } = toolChanges;
 		if (pi.getMode() === "plan") {
 			const required = [...ALWAYS_ACTIVE_IN_PLAN, ...extraReadOnlyTools().filter(allowed)];
-			const newlyBlocked = active.filter((name) => !allowed(name) && !suppressed.includes(name));
+			// A blocked tool that tool_search loaded during a run was not active before Plan mode, so leaving must not activate it.
+			const newlyBlocked = active.filter(
+				(name) => !allowed(name) && !suppressed.includes(name) && !(duringRun && isSearchable(name)),
+			);
 			const newlyAdded = required.filter((name) => !active.includes(name) && !added.includes(name));
 			if (newlyBlocked.length > 0 || newlyAdded.length > 0) {
 				saveToolChanges({ suppressed: [...suppressed, ...newlyBlocked], added: [...added, ...newlyAdded] });
@@ -155,7 +177,7 @@ export default function planMode(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.on("tool_call", async (event) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (pi.getMode() !== "plan") return;
 		if (!allowed(event.toolName)) {
 			return {
@@ -164,16 +186,31 @@ export default function planMode(pi: ExtensionAPI): void {
 				reason: "Plan mode: only verified inspection tools are allowed. Mutating work needs Build mode.",
 			};
 		}
-		if (event.toolName === "bash") {
-			if (typeof event.input.command !== "string" || !isSafeCommand(event.input.command)) {
+		if (isToolCallEventType("bash", event)) {
+			const command = event.input.command;
+			const safeCommand = toSafeCommand(command);
+			if (safeCommand !== undefined) {
+				event.input.command = safeCommand;
+				return;
+			}
+			if (approvedCommands.has(command)) return;
+			if (ctx.mode !== "tui") {
 				return {
 					block: true,
 					reason:
-						"Plan mode: use a single inspection command (node -v, npm -v, ls, cat, rg). Split compound commands into separate calls; no writes/expansion. git diff/log/show require --no-ext-diff --no-textconv.",
+						"Plan mode: this command is not a known inspection command and no one can approve it here. Use read-only commands without writes or shell expansion.",
 				};
 			}
-			if (event.input.command.trim().startsWith("git ")) {
-				event.input.command = event.input.command.replace(/^\s*git\s/, "git --no-optional-locks ");
+			// The user decides from this text, so the model's command must not be able to hide or reorder any of it.
+			const shownCommand = command.replace(/(?!\n)[\p{Cc}\p{Cf}]/gu, "�");
+			const choice = await ctx.ui.select(`Plan mode: allow this command?\n\n${shownCommand}`, [
+				ALLOW_ONCE,
+				ALLOW_FOR_SESSION,
+				"Deny",
+			]);
+			if (choice === ALLOW_FOR_SESSION) approvedCommands.add(command);
+			if (choice !== ALLOW_ONCE && choice !== ALLOW_FOR_SESSION) {
+				return { block: true, reason: "Plan mode: the user denied this command. Do not retry it." };
 			}
 		}
 	});
@@ -186,12 +223,12 @@ export default function planMode(pi: ExtensionAPI): void {
 
 	// Not persisted: the instructions apply to every request in Plan mode and vanish once it ends.
 	pi.on("context", async (event) => {
-		syncTools();
+		syncTools(true);
 		if (pi.getMode() !== "plan") return;
 		const message: AgentMessage = {
 			role: "custom",
 			customType: PLAN_CONTEXT,
-			content: PLAN_MODE_INSTRUCTIONS,
+			content: `${PLAN_MODE_INSTRUCTIONS}\n\n${PLAN_MODE_BASH_NOTES}`,
 			display: false,
 			timestamp: Date.now(),
 		};
@@ -205,7 +242,10 @@ export default function planMode(pi: ExtensionAPI): void {
 	});
 
 	pi.on("mode_select", async () => syncTools());
-	pi.on("session_start", async (_event, ctx) => load(ctx));
+	pi.on("session_start", async (_event, ctx) => {
+		approvedCommands.clear();
+		load(ctx);
+	});
 	pi.on("session_tree", async (_event, ctx) => load(ctx));
 	pi.on("session_shutdown", async () => closeMenu?.());
 }

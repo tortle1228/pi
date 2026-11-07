@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import planModeExtension from "../../src/extensions/plan-mode/index.ts";
 import type { PlanMenuChoice } from "../../src/extensions/plan-mode/plan-menu.ts";
 import requestUserInputExtension from "../../src/extensions/request-user-input/index.ts";
+import { createToolSearchExtension } from "../../src/extensions/tool-search/index.ts";
 import { createHarness, createTestUiContext, getToolResult, type Harness } from "./harness.ts";
 
 const PLAN_RESPONSE = "Here it is.\n\n<proposed_plan>\n# Plan\n</proposed_plan>";
@@ -75,6 +76,167 @@ describe("built-in plan-mode extension", () => {
 
 		expect(bashExecute).toHaveBeenCalledTimes(1);
 		expect(bashExecute.mock.calls[0][1]).toMatchObject({ command: "ls -la" });
+	});
+
+	describe("bash approval", () => {
+		const UNKNOWN = "npm run check";
+
+		async function createWithApproval(choices: (string | undefined)[], mode: "tui" | "print" = "tui") {
+			const bashExecute = vi.fn();
+			const harness = await create(vi.fn(), bashExecute);
+			const select = vi.fn(async (_title: string) => choices.shift());
+			await harness.session.bindExtensions({ uiContext: createTestUiContext({ select }), mode });
+			await harness.session.setMode("plan");
+			return { harness, bashExecute, select };
+		}
+
+		const callsThenDone = (commands: string[]) => [
+			...commands.map((command) =>
+				fauxAssistantMessage([fauxToolCall("bash", { command })], { stopReason: "toolUse" }),
+			),
+			fauxAssistantMessage("done"),
+		];
+
+		it("runs an unknown command only after the user allows it", async () => {
+			const { harness, bashExecute, select } = await createWithApproval(["Allow once"]);
+			harness.setResponses(callsThenDone([UNKNOWN]));
+
+			await harness.session.prompt("check");
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(bashExecute).toHaveBeenCalledTimes(1);
+			expect(bashExecute.mock.calls[0][1]).toMatchObject({ command: UNKNOWN });
+		});
+
+		it.each(["Deny", undefined])("does not run the command when the answer is %s", async (choice) => {
+			const { harness, bashExecute } = await createWithApproval([choice]);
+			harness.setResponses(callsThenDone([UNKNOWN]));
+
+			await harness.session.prompt("check");
+
+			expect(bashExecute).not.toHaveBeenCalled();
+			expect(getToolResult(harness, "bash").content).toEqual([
+				{ type: "text", text: "Plan mode: the user denied this command. Do not retry it." },
+			]);
+		});
+
+		it("asks again after allow once, and not after allow for session", async () => {
+			const once = await createWithApproval(["Allow once", "Deny"]);
+			once.harness.setResponses(callsThenDone([UNKNOWN, UNKNOWN]));
+			await once.harness.session.prompt("check");
+			expect(once.select).toHaveBeenCalledTimes(2);
+			expect(once.bashExecute).toHaveBeenCalledTimes(1);
+
+			const session = await createWithApproval(["Allow this exact command for this session"]);
+			session.harness.setResponses(callsThenDone([UNKNOWN, UNKNOWN]));
+			await session.harness.session.prompt("check");
+			expect(session.select).toHaveBeenCalledTimes(1);
+			expect(session.bashExecute).toHaveBeenCalledTimes(2);
+		});
+
+		it("shows control characters as visible text but runs the command as sent", async () => {
+			const { harness, bashExecute, select } = await createWithApproval(["Allow once"]);
+			const command = "rm x \x1b[8mhidden\x1b[0m ‮fdp\nls";
+			harness.setResponses(callsThenDone([command]));
+
+			await harness.session.prompt("check");
+
+			expect(select.mock.calls[0][0]).toContain("rm x �[8mhidden�[0m �fdp\nls");
+			expect(bashExecute.mock.calls[0][1]).toMatchObject({ command });
+		});
+
+		it("does not ask for an inspection command and rewrites git", async () => {
+			const { harness, bashExecute, select } = await createWithApproval([]);
+			harness.setResponses(callsThenDone(["git status | head -5"]));
+
+			await harness.session.prompt("look");
+
+			expect(select).not.toHaveBeenCalled();
+			expect(bashExecute.mock.calls[0][1]).toMatchObject({
+				command: "git --no-pager --no-optional-locks -c core.fsmonitor=false status | head -5",
+			});
+		});
+
+		it("blocks an unknown command without asking outside the interactive UI", async () => {
+			const { harness, bashExecute, select } = await createWithApproval([], "print");
+			harness.setResponses(callsThenDone([UNKNOWN]));
+
+			await harness.session.prompt("check");
+
+			expect(select).not.toHaveBeenCalled();
+			expect(bashExecute).not.toHaveBeenCalled();
+		});
+	});
+
+	it("keeps tools that declare readOnlyHint and tool_search, and removes other tools", async () => {
+		const harness = await createHarness({
+			extensionFactories: [
+				planModeExtension,
+				(pi) => {
+					pi.registerTool({ ...tool("docs"), annotations: { readOnlyHint: true } });
+					pi.registerTool({ ...tool("reader"), annotations: { readOnlyHint: true }, reachesTools: () => "all" });
+					pi.registerTool({ ...tool("deploy"), annotations: { readOnlyHint: false } });
+					pi.registerTool(tool("other"));
+					pi.registerTool(tool("tool_search"));
+				},
+			],
+		});
+		harnesses.push(harness);
+
+		await harness.session.setMode("plan");
+
+		const active = harness.session.getActiveToolNames();
+		expect(active).toEqual(expect.arrayContaining(["docs", "tool_search", "read"]));
+		expect(active).not.toContain("reader");
+		expect(active).not.toContain("deploy");
+		expect(active).not.toContain("other");
+	});
+
+	it("does not activate a blocked tool in build mode only because tool_search loaded it in plan mode", async () => {
+		const harness = await createHarness({
+			extensionFactories: [
+				planModeExtension,
+				createToolSearchExtension(),
+				(pi) => {
+					pi.registerTool({ ...tool("deploy"), exposure: "deferred" });
+					pi.registerTool({ ...tool("docs_lookup"), exposure: "deferred", annotations: { readOnlyHint: true } });
+				},
+			],
+		});
+		harnesses.push(harness);
+		harness.session.setActiveToolsByName([...harness.session.getActiveToolNames(), "tool_search"]);
+		await harness.session.setMode("plan");
+		const seen: string[][] = [];
+		harness.setResponses([
+			fauxAssistantMessage([fauxToolCall("tool_search", { query: "deploy docs_lookup" })], {
+				stopReason: "toolUse",
+			}),
+			() => {
+				seen.push(harness.session.getActiveToolNames());
+				return fauxAssistantMessage("done");
+			},
+		]);
+
+		await harness.session.prompt("find tools");
+
+		expect(seen[0]).toContain("docs_lookup");
+		expect(seen[0]).not.toContain("deploy");
+		await harness.session.setMode("build");
+		expect(harness.session.getActiveToolNames()).not.toContain("deploy");
+	});
+
+	it("restores a searchable tool that was active before plan mode", async () => {
+		const harness = await createHarness({
+			extensionFactories: [planModeExtension, (pi) => pi.registerTool({ ...tool("deploy"), exposure: "deferred" })],
+		});
+		harnesses.push(harness);
+		harness.session.setActiveToolsByName([...harness.session.getActiveToolNames(), "deploy"]);
+
+		await harness.session.setMode("plan");
+		expect(harness.session.getActiveToolNames()).not.toContain("deploy");
+
+		await harness.session.setMode("build");
+		expect(harness.session.getActiveToolNames()).toContain("deploy");
 	});
 
 	it("sends the instructions on plan requests only and notes each mode change once", async () => {
