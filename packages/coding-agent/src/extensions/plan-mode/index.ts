@@ -16,6 +16,7 @@ const INSPECTION_TOOLS = new Set([
 	"ls",
 	"request_user_input",
 	"web_search",
+	"x_search",
 	"tool_search",
 ]);
 const ALWAYS_ACTIVE_IN_PLAN = ["read", "bash", "grep", "find", "ls", "request_user_input"];

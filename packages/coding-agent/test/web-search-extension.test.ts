@@ -10,7 +10,7 @@ import type {
 import { DEFAULT_MAX_BYTES } from "../src/core/tools/truncate.ts";
 import { builtInExtensions } from "../src/extensions/index.ts";
 import webSearch from "../src/extensions/web-search/index.ts";
-import { getSearchBackend } from "../src/extensions/web-search/search.ts";
+import { getSearchBackend, getXSearchBackend } from "../src/extensions/web-search/search.ts";
 import { searchZai } from "../src/extensions/web-search/zai.ts";
 
 function context(provider?: string): ExtensionToolContext {
@@ -23,11 +23,11 @@ function context(provider?: string): ExtensionToolContext {
 
 function harness(defaultTools?: string[]) {
 	let active = ["read", "bash"];
-	let registered: ToolDefinition<TSchema, unknown, unknown> | undefined;
+	const registered = new Map<string, ToolDefinition<TSchema, unknown, unknown>>();
 	const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
 	const stub = {
 		registerTool(tool: ToolDefinition<TSchema, unknown, unknown>) {
-			registered = tool;
+			registered.set(tool.name, tool);
 		},
 		getActiveTools: () => active,
 		getSettings: () => ({ defaultTools }),
@@ -40,9 +40,12 @@ function harness(defaultTools?: string[]) {
 	};
 	// The fixture implements exactly the host methods this extension uses.
 	webSearch(stub as unknown as ExtensionAPI);
-	if (!registered) throw new Error("web_search was not registered");
+	const tool = registered.get("web_search");
+	const xSearch = registered.get("x_search");
+	if (!tool || !xSearch) throw new Error("search tools were not registered");
 	return {
-		tool: registered,
+		tool,
+		xSearch,
 		active: () => active,
 		disable: () => stub.setActiveTools(active.filter((name) => name !== "web_search")),
 		emit(event: string, ctx: ExtensionContext) {
@@ -54,10 +57,12 @@ function harness(defaultTools?: string[]) {
 }
 
 describe("provider-aware web_search", () => {
-	it("registers one inactive standalone tool", () => {
+	it("registers inactive standalone search tools", () => {
 		const h = harness();
 		expect(h.tool.name).toBe("web_search");
+		expect(h.xSearch.name).toBe("x_search");
 		expect(h.tool.defaultActive).toBe(false);
+		expect(h.xSearch.defaultActive).toBe(false);
 		expect(h.active()).toEqual(["read", "bash"]);
 	});
 
@@ -77,6 +82,25 @@ describe("provider-aware web_search", () => {
 		expect(h.active()).toEqual(["read", "bash", "web_search"]);
 		h.emit("model_select", context());
 		expect(h.active()).toEqual(["read", "bash"]);
+	});
+
+	it("activates x_search only for xai and drops it when the provider changes", () => {
+		const h = harness();
+		h.emit("model_select", context("xai"));
+		expect(h.active()).toEqual(["read", "bash", "web_search", "x_search"]);
+		expect(getSearchBackend("xai")).toBeDefined();
+		expect(getXSearchBackend("xai")).toBeDefined();
+		h.emit("model_select", context("openai"));
+		expect(h.active()).toEqual(["read", "bash", "web_search"]);
+		expect(getXSearchBackend("openai")).toBeUndefined();
+		h.emit("model_select", context("google"));
+		expect(h.active()).toEqual(["read", "bash"]);
+	});
+
+	it("keeps x_search off when defaultTools removes it", () => {
+		const h = harness(["-x_search"]);
+		h.emit("session_start", context("xai"));
+		expect(h.active()).toEqual(["read", "bash", "web_search"]);
 	});
 
 	it("does not activate unsupported providers, including inherited object keys", () => {

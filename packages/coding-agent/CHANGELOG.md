@@ -9,6 +9,7 @@
 
 ### Added
 
+- Added xAI web search and a separate `x_search` tool. With an `xai` model, `web_search` uses xAI's server-side web search and `x_search` searches posts on X. Both send only the query.
 - Added Plan and Build modes with a separate model and thinking level per mode, `plan` defaults in settings, `pi.getMode()`, `pi.setMode()`, and the `mode_select` extension event.
 - Added the built-in `plan-mode` extension: inspection-only tools, proposed plan rendering, and the `Implement this plan?` menu.
 - Added the built-in `request_user_input` tool.

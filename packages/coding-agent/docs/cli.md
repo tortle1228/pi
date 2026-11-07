@@ -148,13 +148,14 @@ The MCP resource tools (`list_mcp_resources`, `list_mcp_resource_templates`, `re
 | `find` | Find paths using glob patterns |
 | `ls` | List directory contents |
 
-Built-in extensions add `tasks` (on by default), `web_search` (on when the selected provider supports it; see [Web Search](web-search.md)), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
+Built-in extensions add `tasks` (on by default), `web_search` (on when the selected provider supports it; see [Web Search](web-search.md)), `x_search` (on for xAI), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
 
 | Built-in extension | Purpose |
 |---|---|
 | `codemode` | Run JavaScript that calls the other tools, for example in parallel with `Promise.allSettled`; only the script's output reaches the model |
 | `tool_search` | Search tools that are not declared to the model (`codemode` and `deferred` exposure, such as MCP tools) and declare the matches for the next call |
-| `web_search` | Search the web with the selected Z.AI, OpenAI, or Anthropic provider and return source links |
+| `web_search` | Search the web with the selected Z.AI, OpenAI, Anthropic, or xAI provider and return source links |
+| `x_search` | Search posts on X with the selected xAI model and return source links |
 
 ### Enable codemode
 

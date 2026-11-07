@@ -1,7 +1,7 @@
 // Provider dispatch and the contract implemented by search backends.
 import type { ExtensionContext } from "../../core/extensions/types.ts";
 import { searchAnthropic } from "./anthropic.ts";
-import { searchOpenAI } from "./openai.ts";
+import { searchOpenAI, searchX, searchXai } from "./openai.ts";
 import { loadZaiSearch } from "./zai.lazy.ts";
 
 export interface SearchResult {
@@ -18,9 +18,19 @@ const backends: Readonly<Record<string, SearchBackend>> = {
 	openai: { search: searchOpenAI },
 	"openai-codex": { search: searchOpenAI },
 	anthropic: { search: searchAnthropic },
+	xai: { search: searchXai },
+};
+
+const xBackends: Readonly<Record<string, SearchBackend>> = {
+	xai: { search: searchX },
 };
 
 /** Select a search backend by provider ID, never by model name or URL. */
 export function getSearchBackend(provider: string | undefined): SearchBackend | undefined {
 	return provider === undefined || !Object.hasOwn(backends, provider) ? undefined : backends[provider];
+}
+
+/** Select an X post search backend by provider ID. Only xAI offers one. */
+export function getXSearchBackend(provider: string | undefined): SearchBackend | undefined {
+	return provider === undefined || !Object.hasOwn(xBackends, provider) ? undefined : xBackends[provider];
 }

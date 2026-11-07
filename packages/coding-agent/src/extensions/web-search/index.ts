@@ -2,7 +2,7 @@
 import { Type } from "typebox";
 import { defineTool, type ExtensionAPI, type ExtensionContext } from "../../core/extensions/types.ts";
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from "../../core/tools/truncate.ts";
-import { getSearchBackend } from "./search.ts";
+import { getSearchBackend, getXSearchBackend, type SearchBackend } from "./search.ts";
 
 /**
  * Keep the result within the standard tool output limit.
@@ -18,41 +18,86 @@ function limitResult(text: string): string {
 	return `${head}\n\n[Search results truncated: showing ${formatSize(Buffer.byteLength(head))} of ${formatSize(result.totalBytes)}.]`;
 }
 
-/** Register provider-aware web search without changing other tools' active states. */
+interface SearchTool {
+	name: "web_search" | "x_search";
+	label: string;
+	description: string;
+	promptSnippet: string;
+	guideline: string;
+	queryDescription: string;
+	unsupported: string;
+	resolve(provider: string | undefined): SearchBackend | undefined;
+}
+
+const searchTools: readonly SearchTool[] = [
+	{
+		name: "web_search",
+		label: "Web Search",
+		description: "Search the web for current information using the selected provider. Returns source links.",
+		promptSnippet: "Search the web for current information and source links",
+		guideline: "Cite the source URLs returned by web_search when using search results.",
+		queryDescription: "Web search query",
+		unsupported: "Web search",
+		resolve: getSearchBackend,
+	},
+	{
+		name: "x_search",
+		label: "X Search",
+		description: "Search posts on X (Twitter) using xAI. Returns source links.",
+		promptSnippet: "Search posts on X and return source links",
+		guideline: "Cite the source URLs returned by x_search when using search results.",
+		queryDescription: "X post search query",
+		unsupported: "X search",
+		resolve: getXSearchBackend,
+	},
+];
+
+/** Register provider-aware web and X search without changing other tools' active states. */
 export default function webSearch(pi: ExtensionAPI): void {
-	pi.registerTool(
-		defineTool({
-			name: "web_search",
-			label: "Web Search",
-			description: "Search the web for current information using the selected provider. Returns source links.",
-			promptSnippet: "Search the web for current information and source links",
-			promptGuidelines: ["Cite the source URLs returned by web_search when using search results."],
-			defaultActive: false,
-			parameters: Type.Object({ query: Type.String({ minLength: 1, description: "Web search query" }) }),
-			async execute(_id, { query }, signal, _onUpdate, ctx) {
-				const backend = getSearchBackend(ctx.model?.provider);
-				if (!backend)
-					throw new Error(`Web search is not supported for provider "${ctx.model?.provider ?? "none"}".`);
-				if (!query.trim()) throw new Error("Search query must not be blank.");
-				const result = await backend.search(query, ctx, signal);
-				return {
-					content: [{ type: "text", text: limitResult(result.text) }],
-					details: { backend: result.backend },
-				};
-			},
-		}),
-	);
+	for (const tool of searchTools) {
+		pi.registerTool(
+			defineTool({
+				name: tool.name,
+				label: tool.label,
+				description: tool.description,
+				promptSnippet: tool.promptSnippet,
+				promptGuidelines: [tool.guideline],
+				defaultActive: false,
+				parameters: Type.Object({ query: Type.String({ minLength: 1, description: tool.queryDescription }) }),
+				async execute(_id, { query }, signal, _onUpdate, ctx) {
+					const backend = tool.resolve(ctx.model?.provider);
+					if (!backend)
+						throw new Error(
+							`${tool.unsupported} is not supported for provider "${ctx.model?.provider ?? "none"}".`,
+						);
+					if (!query.trim()) throw new Error("Search query must not be blank.");
+					const result = await backend.search(query, ctx, signal);
+					return {
+						content: [{ type: "text", text: limitResult(result.text) }],
+						details: { backend: result.backend },
+					};
+				},
+			}),
+		);
+	}
 
 	const synchronize = (ctx: ExtensionContext) => {
-		const active = pi.getActiveTools();
-		const supported = getSearchBackend(ctx.model?.provider) !== undefined;
+		let active = pi.getActiveTools();
 		// Merged settings layers append modifiers, and the last one wins, as in `applyToolModifiers`.
 		const defaultTools = pi.getSettings().defaultTools ?? [];
-		const optedOut = defaultTools.lastIndexOf("-web_search") > defaultTools.lastIndexOf("+web_search");
-		if (supported && !optedOut && !active.includes("web_search")) pi.setActiveTools([...active, "web_search"]);
-		else if (!supported && active.includes("web_search")) {
-			pi.setActiveTools(active.filter((name) => name !== "web_search"));
+		let changed = false;
+		for (const tool of searchTools) {
+			const optedOut = defaultTools.lastIndexOf(`-${tool.name}`) > defaultTools.lastIndexOf(`+${tool.name}`);
+			const supported = tool.resolve(ctx.model?.provider) !== undefined && !optedOut;
+			if (supported && !active.includes(tool.name)) {
+				active = [...active, tool.name];
+				changed = true;
+			} else if (!supported && active.includes(tool.name)) {
+				active = active.filter((name) => name !== tool.name);
+				changed = true;
+			}
 		}
+		if (changed) pi.setActiveTools(active);
 	};
 	pi.on("session_start", (_event, ctx) => synchronize(ctx));
 	pi.on("model_select", (_event, ctx) => synchronize(ctx));
