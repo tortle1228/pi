@@ -45,7 +45,7 @@ describe("SettingsManager", () => {
 			currentSettings.enabledModels = ["claude-opus-4-5", "gpt-5.2-codex"];
 			writeFileSync(settingsPath, JSON.stringify(currentSettings, null, 2));
 
-			// User changes thinking level via Shift+Tab
+			// User changes thinking level via Ctrl+T
 			manager.setDefaultThinkingLevel("high");
 			await manager.flush();
 

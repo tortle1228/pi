@@ -102,6 +102,14 @@ Emitted when the user switches models mid-session. The latest entry is the selec
 {"type":"model_change","id":"d4e5f6g7","parentId":"c3d4e5f6","timestamp":"2024-12-03T14:05:00.000Z","provider":"openai","modelId":"gpt-4o"}
 ```
 
+### ModeChangeEntry
+
+Emitted when the session switches between Plan and Build mode. The latest entry on a branch is its mode; a branch without one is in Build mode. `model_change` and `thinking_level_change` entries after it belong to that mode.
+
+```json
+{"type":"mode_change","id":"d5e6f7g8","parentId":"d4e5f6g7","timestamp":"2024-12-03T14:05:30.000Z","mode":"plan"}
+```
+
 ### ThinkingLevelChangeEntry
 
 Emitted when the user changes the thinking/reasoning level.
@@ -284,6 +292,9 @@ for (const line of lines) {
       break;
     case "model_change":
       console.log(`[${entry.id}] Model: ${entry.provider}/${entry.modelId}`);
+      break;
+    case "mode_change":
+      console.log(`[${entry.id}] Mode: ${entry.mode}`);
       break;
     case "thinking_level_change":
       console.log(`[${entry.id}] Thinking: ${entry.thinkingLevel}`);

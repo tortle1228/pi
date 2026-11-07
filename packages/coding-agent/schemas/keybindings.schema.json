@@ -211,6 +211,10 @@
       "$ref": "#/$defs/KeybindingValue",
       "description": "Suspend to background"
     },
+    "app.mode.cycle": {
+      "$ref": "#/$defs/KeybindingValue",
+      "description": "Switch between Plan and Build mode"
+    },
     "app.thinking.cycle": {
       "$ref": "#/$defs/KeybindingValue",
       "description": "Cycle thinking level"

@@ -100,6 +100,7 @@ const RESERVED_KEYBINDINGS_FOR_EXTENSION_CONFLICTS = [
 	"app.clear",
 	"app.exit",
 	"app.suspend",
+	"app.mode.cycle",
 	"app.thinking.cycle",
 	"app.model.cycleForward",
 	"app.model.cycleBackward",
@@ -441,6 +442,8 @@ export class ExtensionRunner {
 		this.runtime.setModel = actions.setModel;
 		this.runtime.getThinkingLevel = actions.getThinkingLevel;
 		this.runtime.setThinkingLevel = actions.setThinkingLevel;
+		this.runtime.getMode = actions.getMode;
+		this.runtime.setMode = actions.setMode;
 		this.runtime.createContext = () => this.createContext();
 
 		// Context actions (required)

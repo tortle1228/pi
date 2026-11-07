@@ -58,6 +58,7 @@ import type {
 } from "@earendil-works/pi-tui";
 import type { Static, TSchema } from "typebox";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
+import type { AgentMode } from "../agent-mode.ts";
 import type { BashResult } from "../bash-executor.ts";
 import type { CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult } from "../cache-warmer.ts";
 import type { CompactionPreparation, CompactionResult } from "../compaction/index.ts";
@@ -1158,6 +1159,13 @@ export interface ModelSelectEvent {
 	source: ModelSelectSource;
 }
 
+/** Fired after the session switches between Plan and Build mode and has applied that mode's model and thinking level */
+export interface ModeSelectEvent {
+	type: "mode_select";
+	mode: AgentMode;
+	previousMode: AgentMode;
+}
+
 /** Fired when a new thinking level is selected */
 export interface ThinkingLevelSelectEvent {
 	type: "thinking_level_select";
@@ -1451,6 +1459,7 @@ export type ExtensionEvent =
 	| ToolExecutionEndEvent
 	| ModelSelectEvent
 	| ThinkingLevelSelectEvent
+	| ModeSelectEvent
 	| UserBashEvent
 	| InputEvent
 	| ToolCallEvent
@@ -1703,6 +1712,7 @@ export interface ExtensionAPI {
 	on(event: "tool_execution_end", handler: ExtensionHandler<ToolExecutionEndEvent>): () => void;
 	on(event: "model_select", handler: ExtensionHandler<ModelSelectEvent>): () => void;
 	on(event: "thinking_level_select", handler: ExtensionHandler<ThinkingLevelSelectEvent>): () => void;
+	on(event: "mode_select", handler: ExtensionHandler<ModeSelectEvent>): () => void;
 	on(event: "tool_call", handler: ExtensionHandler<ToolCallEvent, ToolCallEventResult>): () => void;
 	on(event: "tool_result", handler: ExtensionHandler<ToolResultEvent, ToolResultEventResult>): () => void;
 	on(event: "user_bash", handler: ExtensionHandler<UserBashEvent, UserBashEventResult>): () => void;
@@ -1846,6 +1856,12 @@ export interface ExtensionAPI {
 	 * for new sessions.
 	 */
 	setThinkingLevel(level: ThinkingLevel): void;
+
+	/** Get the session's Plan or Build mode. Unrelated to `ctx.mode`, which is the run mode (TUI, RPC, print). */
+	getMode(): AgentMode;
+
+	/** Switch between Plan and Build mode and apply that mode's model and thinking level. */
+	setMode(mode: AgentMode): Promise<void>;
 
 	// =========================================================================
 	// Provider Registration
@@ -2250,6 +2266,8 @@ export interface ExtensionActions {
 	setModel: SetModelHandler;
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
+	getMode: () => AgentMode;
+	setMode: (mode: AgentMode) => Promise<void>;
 }
 
 /**

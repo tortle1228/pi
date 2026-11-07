@@ -156,6 +156,42 @@ describe("TreeSelectorComponent", () => {
 			expect(list.getSelectedNode()?.entry.id).toBe("user-2");
 		});
 
+		test("hides mode changes by default and labels them in all mode", () => {
+			const entries: SessionEntry[] = [
+				userMessage("user-1", null, "hello"),
+				assistantMessage("asst-1", "user-1", "hi"),
+				{
+					type: "mode_change",
+					id: "mode-1",
+					parentId: "asst-1",
+					timestamp: new Date().toISOString(),
+					mode: "plan",
+				},
+			];
+			const tree = buildTree(entries);
+			const defaultSelector = new TreeSelectorComponent(
+				tree,
+				"mode-1",
+				24,
+				() => {},
+				() => {},
+			);
+			expect(defaultSelector.getTreeList().getSelectedNode()?.entry.id).toBe("asst-1");
+
+			const allSelector = new TreeSelectorComponent(
+				tree,
+				"mode-1",
+				24,
+				() => {},
+				() => {},
+				undefined,
+				undefined,
+				"all",
+			);
+			const rendered = allSelector.getTreeList().render(200).map(stripVTControlCharacters).join("\n");
+			expect(rendered).toContain("[mode: plan]");
+		});
+
 		test("hides context edits by default and labels them in all mode", () => {
 			const entries: SessionEntry[] = [
 				userMessage("user-1", null, "hello"),

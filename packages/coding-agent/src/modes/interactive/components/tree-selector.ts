@@ -364,6 +364,7 @@ class TreeList implements Component {
 				entry.type === "context_edit" ||
 				entry.type === "custom" ||
 				entry.type === "model_change" ||
+				entry.type === "mode_change" ||
 				entry.type === "thinking_level_change" ||
 				entry.type === "session_info";
 
@@ -605,6 +606,9 @@ class TreeList implements Component {
 			case "model_change":
 				parts.push("model", entry.modelId);
 				break;
+			case "mode_change":
+				parts.push("mode", entry.mode);
+				break;
 			case "thinking_level_change":
 				parts.push("thinking", entry.thinkingLevel);
 				break;
@@ -837,6 +841,9 @@ class TreeList implements Component {
 				break;
 			case "model_change":
 				result = theme.fg("dim", `[model: ${entry.modelId}]`);
+				break;
+			case "mode_change":
+				result = theme.fg("dim", `[mode: ${entry.mode}]`);
 				break;
 			case "thinking_level_change":
 				result = theme.fg("dim", `[thinking: ${entry.thinkingLevel}]`);

@@ -31,6 +31,7 @@ import { createInterface } from "readline";
 import { StringDecoder } from "string_decoder";
 import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../config.ts";
 import { normalizePath, pathsEqual, resolvePath } from "../utils/paths.ts";
+import type { AgentMode } from "./agent-mode.ts";
 import {
 	type BashExecutionMessage,
 	type CustomMessage,
@@ -75,6 +76,11 @@ export interface ModelChangeEntry extends SessionEntryBase {
 	type: "model_change";
 	provider: string;
 	modelId: string;
+}
+
+export interface ModeChangeEntry extends SessionEntryBase {
+	type: "mode_change";
+	mode: AgentMode;
 }
 
 export interface UsageEntry extends SessionEntryBase {
@@ -184,6 +190,7 @@ export type SessionEntry =
 	| SessionMessageEntry
 	| ThinkingLevelChangeEntry
 	| ModelChangeEntry
+	| ModeChangeEntry
 	| UsageEntry
 	| CompactionEntry
 	| BranchSummaryEntry
@@ -1238,6 +1245,18 @@ export class SessionManager {
 	}
 
 	/** Append a model change as child of current leaf, then advance leaf. Returns entry id. */
+	appendModeChange(mode: AgentMode): string {
+		const entry: ModeChangeEntry = {
+			type: "mode_change",
+			id: generateId(this.byId),
+			parentId: this.leafId,
+			timestamp: new Date().toISOString(),
+			mode,
+		};
+		this._appendEntry(entry);
+		return entry.id;
+	}
+
 	appendModelChange(provider: string, modelId: string): string {
 		const entry: ModelChangeEntry = {
 			type: "model_change",

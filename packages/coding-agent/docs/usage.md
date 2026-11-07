@@ -46,7 +46,8 @@ Windows Terminal reserves some Alt shortcuts. See [Terminal Setup](terminal-setu
 Type `/` to search the available commands. The commands you will use most often are:
 
 - `/model` selects a model. Press `Ctrl+L` to open the same selector.
-- `/thinking` selects how much reasoning the current model uses. Press `Shift+Tab` to cycle through supported levels.
+- `/thinking` selects how much reasoning the current model uses. Press `Ctrl+T` to cycle through supported levels.
+- `Shift+Tab` or `/plan` switches to Plan mode, which allows inspection only and ends with a proposed plan. `Shift+Tab` or `/plan off` returns to Build mode. Each mode keeps its own model and thinking level.
 - `/login` and `/logout` manage provider access.
 - `/settings` changes common preferences.
 

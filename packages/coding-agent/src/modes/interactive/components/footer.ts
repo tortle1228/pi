@@ -6,6 +6,7 @@ import type { ContextUsage } from "../../../core/extensions/types.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
 import { addUsageToTotals, createUsageTotals, type UsageTotals } from "../../../core/usage-totals.ts";
 import { theme } from "../theme/theme.ts";
+import { keyText } from "./keybinding-hints.ts";
 
 /**
  * Sanitize text for display in a single-line status.
@@ -154,6 +155,23 @@ export class FooterComponent implements Component {
 		return this.sessionStats;
 	}
 
+	/** Right-aligns the Plan mode indicator on the pwd line. The cycle hint is hidden while a run blocks cycling. */
+	private withModeIndicator(pwd: string, width: number): string {
+		const fitPwd = (available: number) => truncateToWidth(theme.fg("dim", pwd), available, theme.fg("dim", "..."));
+		if (this.session.getMode() !== "plan") return fitPwd(width);
+		const cycleKey = keyText("app.mode.cycle");
+		const label = theme.fg("accent", "Plan mode");
+		const indicator =
+			this.session.isStreaming || !cycleKey
+				? label
+				: `${label}${theme.fg("dim", " (")}${theme.fg("dim", theme.bold(cycleKey))}${theme.fg("dim", " to cycle)")}`;
+		const indicatorWidth = visibleWidth(indicator);
+		const available = width - indicatorWidth - 2;
+		if (available < 1) return truncateToWidth(indicator, width);
+		const left = fitPwd(available);
+		return left + " ".repeat(width - visibleWidth(left) - indicatorWidth) + indicator;
+	}
+
 	render(width: number): string[] {
 		const state = this.session.state;
 		const { usageTotals, latestCacheHitRate, contextUsage } = this.getSessionStats();
@@ -283,7 +301,7 @@ export class FooterComponent implements Component {
 		const remainder = statsLine.slice(statsLeft.length); // padding + rightSide
 		const dimRemainder = theme.fg("dim", remainder);
 
-		const pwdLine = truncateToWidth(theme.fg("dim", pwd), width, theme.fg("dim", "..."));
+		const pwdLine = this.withModeIndicator(pwd, width);
 		const lines = [pwdLine, dimStatsLeft + dimRemainder];
 
 		// Add extension statuses on a single line, sorted by key alphabetically

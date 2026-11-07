@@ -17,6 +17,7 @@ import type {
 	FullscreenExitOutput,
 	MermaidRenderingMode,
 	PackageSource,
+	PlanModeSettings,
 	QuietStartup,
 	SessionShareDestination,
 	Settings,
@@ -39,6 +40,7 @@ export type {
 	MarkdownSettings,
 	MermaidRenderingMode,
 	PackageSource,
+	PlanModeSettings,
 	ProviderRetrySettings,
 	QuietStartup,
 	RetrySettings,
@@ -722,6 +724,23 @@ export class SettingsManager {
 	setDefaultModel(modelId: string): void {
 		this.globalSettings.defaultModel = modelId;
 		this.markModified("defaultModel");
+		this.save();
+	}
+
+	getPlanDefaults(): PlanModeSettings {
+		return this.settings.plan ?? {};
+	}
+
+	setPlanDefaultModelAndProvider(provider: string, modelId: string): void {
+		this.globalSettings.plan = { ...this.globalSettings.plan, defaultProvider: provider, defaultModel: modelId };
+		this.markModified("plan", "defaultProvider");
+		this.markModified("plan", "defaultModel");
+		this.save();
+	}
+
+	setPlanDefaultThinkingLevel(level: ThinkingLevel): void {
+		this.globalSettings.plan = { ...this.globalSettings.plan, defaultThinkingLevel: level };
+		this.markModified("plan", "defaultThinkingLevel");
 		this.save();
 	}
 

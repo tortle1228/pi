@@ -62,6 +62,7 @@ import { stripFrontmatter } from "../utils/frontmatter.ts";
 import { processImage } from "../utils/image-process.ts";
 import { sleep } from "../utils/sleep.ts";
 import { normalizeToolResultImages } from "../utils/tool-result-images.ts";
+import { type AgentMode, getBranchMode, getModeSelection } from "./agent-mode.ts";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.ts";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.ts";
 import { generateBugReportSummary } from "./bug-report.ts";
@@ -224,6 +225,7 @@ export type AgentSessionEvent =
 	| { type: "entry_appended"; entry: SessionEntry }
 	| { type: "session_info_changed"; name: string | undefined }
 	| { type: "thinking_level_changed"; level: ThinkingLevel }
+	| { type: "mode_changed"; mode: AgentMode }
 	| {
 			type: "compaction_end";
 			reason: "manual" | "threshold" | "overflow";
@@ -396,6 +398,7 @@ export class AgentSession {
 	readonly settingsManager: SettingsManager;
 
 	private _scopedModels: Array<{ model: Model<any>; thinkingLevel?: ThinkingLevel }>;
+	private _mode: AgentMode;
 
 	// Event subscription state
 	private _unsubscribeAgent?: () => void;
@@ -504,6 +507,7 @@ export class AgentSession {
 		this.sessionManager = config.sessionManager;
 		this.settingsManager = config.settingsManager;
 		this._scopedModels = config.scopedModels ?? [];
+		this._mode = getBranchMode(this.sessionManager.getBranch());
 		this._resourceLoader = config.resourceLoader;
 		this._customTools = config.customTools ?? [];
 		this._cwd = config.cwd;
@@ -2609,10 +2613,7 @@ export class AgentSession {
 		const thinkingLevel = this._getThinkingLevelForModelSwitch(model);
 		this.agent.state.model = model;
 		this.sessionManager.appendModelChange(model.provider, model.id);
-		if (options.persist) {
-			this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
-			this._addPersistedDefaultToNonEmptyScope(model);
-		}
+		if (options.persist) this._persistDefaultModel(model);
 
 		// Apply thinking level for the new model.
 		// Per-model thinking level overrides take priority over the global default.
@@ -2620,6 +2621,15 @@ export class AgentSession {
 		this.setThinkingLevel(thinkingLevel);
 
 		await this._emitModelSelect(model, previousModel, "set");
+	}
+
+	private _persistDefaultModel(model: Model<any>): void {
+		if (this._mode === "plan") {
+			this.settingsManager.setPlanDefaultModelAndProvider(model.provider, model.id);
+		} else {
+			this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
+		}
+		this._addPersistedDefaultToNonEmptyScope(model);
 	}
 
 	private _addPersistedDefaultToNonEmptyScope(model: Model<any>): void {
@@ -2676,10 +2686,7 @@ export class AgentSession {
 		// Apply model
 		this.agent.state.model = next.model;
 		this.sessionManager.appendModelChange(next.model.provider, next.model.id);
-		if (options.persist) {
-			this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
-			this._addPersistedDefaultToNonEmptyScope(next.model);
-		}
+		if (options.persist) this._persistDefaultModel(next.model);
 
 		// Apply thinking level for the new model.
 		// - Explicit scoped model thinking level overrides defaults
@@ -2711,10 +2718,7 @@ export class AgentSession {
 		const thinkingLevel = this._getThinkingLevelForModelSwitch(nextModel);
 		this.agent.state.model = nextModel;
 		this.sessionManager.appendModelChange(nextModel.provider, nextModel.id);
-		if (options.persist) {
-			this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
-			this._addPersistedDefaultToNonEmptyScope(nextModel);
-		}
+		if (options.persist) this._persistDefaultModel(nextModel);
 
 		// Apply thinking level for the new model.
 		// Model persistence does not implicitly rewrite the global thinking default.
@@ -2723,6 +2727,77 @@ export class AgentSession {
 		await this._emitModelSelect(nextModel, currentModel, "cycle");
 
 		return { model: nextModel, thinkingLevel: this.thinkingLevel, isScoped: false };
+	}
+
+	// =========================================================================
+	// Mode Management
+	// =========================================================================
+
+	getMode(): AgentMode {
+		return this._mode;
+	}
+
+	/** Switch mode and apply that mode's model and thinking level. */
+	async setMode(mode: AgentMode): Promise<void> {
+		if (mode === this._mode) return;
+		this._recordModeSelection();
+		const previousMode = this._mode;
+		this._mode = mode;
+		this.sessionManager.appendModeChange(mode);
+		await this._applyMode(previousMode);
+	}
+
+	/** The defaults of the current mode. Plan mode follows the build defaults for values it does not set. */
+	getModeDefaults(): { provider?: string; modelId?: string; thinkingLevel?: ThinkingLevel } {
+		const build = {
+			provider: this.settingsManager.getDefaultProvider(),
+			modelId: this.settingsManager.getDefaultModel(),
+			thinkingLevel: this.settingsManager.getDefaultThinkingLevel(),
+		};
+		if (this._mode === "build") return build;
+		const plan = this.settingsManager.getPlanDefaults();
+		return {
+			provider: plan.defaultProvider ?? build.provider,
+			modelId: plan.defaultModel ?? build.modelId,
+			thinkingLevel: plan.defaultThinkingLevel ?? build.thinkingLevel,
+		};
+	}
+
+	/** Switching back restores what the branch records, which can differ from the live state, as with `--model`. */
+	private _recordModeSelection(): void {
+		const recorded = getModeSelection(this.sessionManager.getBranch(), this._mode);
+		const model = this.model;
+		if (model && (recorded.model?.provider !== model.provider || recorded.model.modelId !== model.id)) {
+			this.sessionManager.appendModelChange(model.provider, model.id);
+		}
+		if (recorded.thinkingLevel !== this.thinkingLevel) {
+			this.sessionManager.appendThinkingLevelChange(this.thinkingLevel);
+		}
+	}
+
+	private async _applyMode(previousMode: AgentMode): Promise<void> {
+		const selection = getModeSelection(this.sessionManager.getBranch(), this._mode);
+		const defaults = this.getModeDefaults();
+		const candidates = [
+			selection.model,
+			defaults.provider && defaults.modelId ? { provider: defaults.provider, modelId: defaults.modelId } : undefined,
+		];
+		const model = candidates
+			.map((candidate) => candidate && this._modelRuntime.getModel(candidate.provider, candidate.modelId))
+			.find((candidate) => candidate && this._modelRuntime.hasConfiguredAuth(candidate.provider));
+
+		const previousModel = this.model;
+		if (model && !modelsAreEqual(previousModel, model)) {
+			this.agent.state.model = model;
+			this.sessionManager.appendModelChange(model.provider, model.id);
+		}
+		this.setThinkingLevel(
+			(selection.thinkingLevel as ThinkingLevel | undefined) ?? this._getThinkingLevelForModelSwitch(this.model),
+		);
+		if (model) await this._emitModelSelect(model, previousModel, "set");
+
+		await this._extensionRunner.emit({ type: "mode_select", mode: this._mode, previousMode });
+		this._emit({ type: "mode_changed", mode: this._mode });
 	}
 
 	// =========================================================================
@@ -2746,7 +2821,8 @@ export class AgentSession {
 		this.agent.state.thinkingLevel = effectiveLevel;
 
 		if (options.persist) {
-			this.settingsManager.setDefaultThinkingLevel(level);
+			if (this._mode === "plan") this.settingsManager.setPlanDefaultThinkingLevel(level);
+			else this.settingsManager.setDefaultThinkingLevel(level);
 		}
 
 		if (isChanging) {
@@ -2803,7 +2879,7 @@ export class AgentSession {
 				return perModel;
 			}
 		}
-		return this.settingsManager.getDefaultThinkingLevel() ?? this.thinkingLevel ?? DEFAULT_THINKING_LEVEL;
+		return this.getModeDefaults().thinkingLevel ?? this.thinkingLevel ?? DEFAULT_THINKING_LEVEL;
 	}
 
 	private _clampThinkingLevel(level: ThinkingLevel, _availableLevels: ThinkingLevel[]): ThinkingLevel {
@@ -3398,6 +3474,8 @@ export class AgentSession {
 		}
 
 		this._applyExtensionBindings(this._extensionRunner);
+		// A resumed Plan mode session cannot stay in Plan mode when `--no-extensions` removed its restrictions.
+		if (this._mode === "plan" && !this._extensionRunner.getCommand("plan")) await this.setMode("build");
 		await this._extensionRunner.emit(this._sessionStartEvent);
 		this._extensionRunner.reportUnhandledMcpServers();
 		await this.extendResourcesFromExtensions(this._sessionStartEvent.reason === "reload" ? "reload" : "startup");
@@ -3554,6 +3632,8 @@ export class AgentSession {
 				},
 				getThinkingLevel: () => this.thinkingLevel,
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
+				getMode: () => this.getMode(),
+				setMode: (mode) => this.setMode(mode),
 			},
 			{
 				getModel: () => this.model,
@@ -4266,6 +4346,13 @@ export class AgentSession {
 			// Update finalized context from the canonical session projection.
 			this._refreshFinalizedContext();
 			this._restoreToolsFromTranscript();
+
+			const branchMode = getBranchMode(this.sessionManager.getBranch());
+			if (branchMode !== this._mode) {
+				const previousMode = this._mode;
+				this._mode = branchMode;
+				await this._applyMode(previousMode);
+			}
 
 			// The selected context is installed; session_tree handlers may now prompt or navigate again.
 			this._branchSummaryAbortController = undefined;

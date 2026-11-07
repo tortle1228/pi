@@ -203,6 +203,15 @@ const SkillsInputSchema = Type.Union(
 	{ description: "Local skill file paths or directories." },
 );
 
+const PlanModeSettingsSchema = Type.Object(
+	{
+		defaultProvider: Type.Optional(Type.String()),
+		defaultModel: Type.Optional(Type.String()),
+		defaultThinkingLevel: Type.Optional(ModelThinkingLevelSchema),
+	},
+	{ description: "Plan mode defaults. Values left out follow the top-level defaults." },
+);
+
 export const SettingsSchema = Type.Object(
 	{
 		$schema: Type.Optional(Type.String({ description: "JSON Schema reference." })),
@@ -215,6 +224,7 @@ export const SettingsSchema = Type.Object(
 		defaultProvider: Type.Optional(Type.String()),
 		defaultModel: Type.Optional(Type.String()),
 		defaultThinkingLevel: Type.Optional(ModelThinkingLevelSchema),
+		plan: Type.Optional(PlanModeSettingsSchema),
 		modelThinkingLevels: Type.Optional(
 			Type.Record(Type.String(), ModelThinkingLevelSchema, {
 				description: 'Per-model default thinking level overrides keyed by "provider/modelId".',
@@ -468,6 +478,7 @@ export const SettingsSchema = Type.Object(
 type SettingsInput = Static<typeof SettingsSchema>;
 
 export interface CompactionModelOverride extends Static<typeof CompactionModelOverrideSchema> {}
+export interface PlanModeSettings extends Static<typeof PlanModeSettingsSchema> {}
 export interface CompactionSettings extends Static<typeof CompactionSettingsSchema> {}
 export interface BranchSummarySettings extends Static<typeof BranchSummarySettingsSchema> {}
 export interface ProviderRetrySettings extends Static<typeof ProviderRetrySettingsSchema> {}

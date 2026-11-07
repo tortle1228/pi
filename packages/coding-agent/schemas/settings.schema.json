@@ -29,6 +29,21 @@
     "defaultThinkingLevel": {
       "$ref": "#/$defs/ModelThinkingLevel"
     },
+    "plan": {
+      "type": "object",
+      "properties": {
+        "defaultProvider": {
+          "type": "string"
+        },
+        "defaultModel": {
+          "type": "string"
+        },
+        "defaultThinkingLevel": {
+          "$ref": "#/$defs/ModelThinkingLevel"
+        }
+      },
+      "description": "Plan mode defaults. Values left out follow the top-level defaults."
+    },
     "modelThinkingLevels": {
       "type": "object",
       "patternProperties": {

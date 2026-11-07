@@ -1055,6 +1055,7 @@ export class InteractiveMode {
 					hint("app.exit", "to exit (empty)"),
 					hint("app.suspend", "to suspend"),
 					keyHint("tui.editor.deleteToLineEnd", "to delete to end"),
+					hint("app.mode.cycle", "to switch Plan/Build mode"),
 					hint("app.thinking.cycle", "to cycle thinking level"),
 					rawKeyHint(
 						`${keyText("app.model.cycleForward")}/${keyText("app.model.cycleBackward")}`,
@@ -1062,7 +1063,7 @@ export class InteractiveMode {
 					),
 					hint("app.model.select", "to select model"),
 					hint("app.tools.expand", "to expand tools"),
-					hint("app.thinking.toggle", "to expand thinking"),
+					...(keyText("app.thinking.toggle") ? [hint("app.thinking.toggle", "to expand thinking")] : []),
 					hint("app.editor.external", "for external editor"),
 					rawKeyHint("/", "for commands"),
 					rawKeyHint("!", "to run bash"),
@@ -3184,6 +3185,7 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("app.clear", () => this.handleCtrlC());
 		this.defaultEditor.onCtrlD = () => this.handleCtrlD();
 		this.defaultEditor.onAction("app.suspend", () => this.handleCtrlZ());
+		this.defaultEditor.onAction("app.mode.cycle", () => this.cycleMode());
 		this.defaultEditor.onAction("app.thinking.cycle", () => this.cycleThinkingLevel());
 		this.defaultEditor.onAction("app.model.cycleForward", () => this.cycleModel("forward"));
 		this.defaultEditor.onAction("app.model.cycleBackward", () => this.cycleModel("backward"));
@@ -3581,6 +3583,16 @@ export class InteractiveMode {
 				this.footer.invalidate();
 				this.updateEditorBorderColor();
 				break;
+
+			case "mode_changed": {
+				this.footer.invalidate();
+				this.updateEditorBorderColor();
+				const model = this.session.model;
+				const level = model?.reasoning ? ` ${this.session.thinkingLevel}` : "";
+				const modeName = event.mode === "plan" ? "Plan" : "Build";
+				this.showStatus(`• Model changed to ${model?.id ?? "no-model"}${level} for ${modeName} mode.`);
+				break;
+			}
 
 			case "message_start":
 				if (event.message.role === "custom") {
@@ -4665,6 +4677,21 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
+	private cycleMode(): void {
+		// Without the plan-mode extension nothing restricts tools, so "Plan mode" would be a false promise.
+		if (!this.session.extensionRunner.getCommand("plan")) {
+			this.showStatus("Plan mode needs the built-in plan-mode extension");
+			return;
+		}
+		if (this.session.isStreaming) {
+			this.showStatus("Stop the current run before switching modes");
+			return;
+		}
+		this.session.setMode(this.session.getMode() === "plan" ? "build" : "plan").catch((error: unknown) => {
+			this.showError(error instanceof Error ? error.message : String(error));
+		});
+	}
+
 	private cycleThinkingLevel(): void {
 		const newLevel = this.session.cycleThinkingLevel();
 		if (newLevel === undefined) {
@@ -5309,7 +5336,8 @@ export class InteractiveMode {
 			this.session.setThinkingLevel(level, { persist });
 			this.footer.invalidate();
 			this.updateEditorBorderColor();
-			this.showStatus(persist ? `Default thinking level: ${level}` : `Thinking level: ${level}`);
+			const defaultLabel = this.session.getMode() === "plan" ? "Plan default" : "Default";
+			this.showStatus(persist ? `${defaultLabel} thinking level: ${level}` : `Thinking level: ${level}`);
 		} catch (error) {
 			this.showError(error instanceof Error ? error.message : String(error));
 		}
@@ -5330,7 +5358,7 @@ export class InteractiveMode {
 					this.ui.requestRender();
 				},
 				(level) => selectLevel(level, true),
-				this.settingsManager.getDefaultThinkingLevel() ?? DEFAULT_THINKING_LEVEL,
+				this.session.getModeDefaults().thinkingLevel ?? DEFAULT_THINKING_LEVEL,
 			);
 			return { component: selector, focus: selector };
 		});
@@ -5493,15 +5521,15 @@ export class InteractiveMode {
 					this.footer.invalidate();
 					this.updateEditorBorderColor();
 					done();
-					this.showStatus(persist ? `Default model: ${model.provider}/${model.id}` : `Model: ${model.id}`);
+					const defaultLabel = this.session.getMode() === "plan" ? "Plan default" : "Default";
+					this.showStatus(persist ? `${defaultLabel} model: ${model.provider}/${model.id}` : `Model: ${model.id}`);
 					void this.maybeWarnAboutAnthropicSubscriptionAuth(model);
 				} catch (error) {
 					done();
 					this.showError(error instanceof Error ? error.message : String(error));
 				}
 			};
-			const defaultProvider = this.settingsManager.getDefaultProvider();
-			const defaultModel = this.settingsManager.getDefaultModel();
+			const { provider: defaultProvider, modelId: defaultModel } = this.session.getModeDefaults();
 			const selector = new ModelSelectorComponent(
 				this.ui,
 				this.session.model,
@@ -6983,6 +7011,7 @@ export class InteractiveMode {
 		const clear = this.getAppKeyDisplay("app.clear");
 		const exit = this.getAppKeyDisplay("app.exit");
 		const suspend = this.getAppKeyDisplay("app.suspend");
+		const cycleMode = this.getAppKeyDisplay("app.mode.cycle");
 		const cycleThinkingLevel = this.getAppKeyDisplay("app.thinking.cycle");
 		const cycleModelForward = this.getAppKeyDisplay("app.model.cycleForward");
 		const selectModel = this.getAppKeyDisplay("app.model.select");
@@ -7028,12 +7057,12 @@ export class InteractiveMode {
 | \`${clear}\` | Clear editor (first) / exit (second) |
 | \`${exit}\` | Exit (when editor is empty) |
 | \`${suspend}\` | Suspend to background |
+| \`${cycleMode}\` | Switch between Plan and Build mode |
 | \`${cycleThinkingLevel}\` | Cycle thinking level |
 | \`${cycleModelForward}\` / \`${cycleModelBackward}\` | Cycle models |
 | \`${selectModel}\` | Open model selector |
 | \`${expandTools}\` | Toggle tool output expansion |
-| \`${toggleThinking}\` | Toggle thinking block visibility |
-| \`${externalEditor}\` | Edit message in external editor |
+${toggleThinking ? `| \`${toggleThinking}\` | Toggle thinking block visibility |\n` : ""}| \`${externalEditor}\` | Edit message in external editor |
 | \`${copyMessage}\` | Copy selection or last assistant message |
 | \`${followUp}\` | Queue follow-up message |
 | \`${dequeue}\` | Restore queued messages |

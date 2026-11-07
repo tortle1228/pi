@@ -1,7 +1,8 @@
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { setKeybindings, visibleWidth } from "@earendil-works/pi-tui";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentSession } from "../src/core/agent-session.ts";
 import type { ReadonlyFooterDataProvider } from "../src/core/footer-data-provider.ts";
+import { KeybindingsManager } from "../src/core/keybindings.ts";
 import { FooterComponent, formatCwdForFooter } from "../src/modes/interactive/components/footer.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
@@ -26,6 +27,8 @@ function createSession(options: {
 	toolUsage?: AssistantUsage;
 	usingSubscription?: boolean;
 	routedModel?: { model: { id: string }; thinkingLevel?: string };
+	mode?: "build" | "plan";
+	streaming?: boolean;
 }): AgentSession {
 	const usage = options.usage;
 	const entries: Array<Record<string, unknown>> = [];
@@ -65,6 +68,8 @@ function createSession(options: {
 	}
 
 	const session = {
+		getMode: () => options.mode ?? "build",
+		isStreaming: options.streaming ?? false,
 		state: {
 			model: {
 				id: options.modelId ?? "test-model",
@@ -120,6 +125,23 @@ describe("formatCwdForFooter", () => {
 describe("FooterComponent width handling", () => {
 	beforeAll(() => {
 		initTheme(undefined, false);
+		setKeybindings(new KeybindingsManager());
+	});
+
+	it("shows the Plan mode indicator on the right only in Plan mode, without the hint while streaming", () => {
+		const render = (options: { mode: "build" | "plan"; streaming?: boolean }) =>
+			stripAnsi(
+				new FooterComponent(createSession({ sessionName: "s", ...options }), createFooterData(1)).render(80)[0],
+			);
+
+		expect(render({ mode: "build" })).not.toContain("Plan mode");
+		expect(render({ mode: "plan" }).endsWith("Plan mode (shift+tab to cycle)")).toBe(true);
+		expect(render({ mode: "plan", streaming: true }).endsWith("Plan mode")).toBe(true);
+		for (const width of [10, 30, 80]) {
+			const session = createSession({ sessionName: "한글".repeat(30), mode: "plan" });
+			const line = new FooterComponent(session, createFooterData(1)).render(width)[0];
+			expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+		}
 	});
 
 	it("keeps all lines within width for wide session names", () => {

@@ -55,3 +55,11 @@ describe("Windows keybinding defaults", () => {
 		expect(KEYBINDINGS["app.message.dequeue"].defaultKeys).toBe(windowsKeybindings ? "alt+q" : "alt+up");
 	});
 });
+
+describe("Plan mode keybinding defaults", () => {
+	it("gives Shift+Tab to mode cycling, Ctrl+T to thinking cycling, and no key to the thinking toggle", () => {
+		expect(KEYBINDINGS["app.mode.cycle"].defaultKeys).toBe("shift+tab");
+		expect(KEYBINDINGS["app.thinking.cycle"].defaultKeys).toBe("ctrl+t");
+		expect(KEYBINDINGS["app.thinking.toggle"].defaultKeys).toEqual([]);
+	});
+});

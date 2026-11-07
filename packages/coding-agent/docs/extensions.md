@@ -966,6 +966,19 @@ pi.on("thinking_level_select", async (event, ctx) => {
 
 Use this to update extension UI when `pi.setThinkingLevel()`, model changes, or built-in thinking-level controls change the active thinking level.
 
+#### mode_select
+
+Fired after the session switches between Plan and Build mode, once that mode's model and thinking level are applied. Fires for `Shift+Tab`, `pi.setMode()`, and tree navigation to a branch in the other mode. This is notification-only; handler return values are ignored.
+
+```typescript
+pi.on("mode_select", async (event, ctx) => {
+  // event.mode - "plan" | "build"
+  // event.previousMode - the mode before the switch
+
+  ctx.ui.setStatus("mode", event.mode);
+});
+```
+
 <a id="tool-call-events"></a>
 
 ### Tool Events
@@ -1949,6 +1962,16 @@ if (model) {
     ctx.ui.notify("No API key for this model", "error");
   }
 }
+```
+
+### pi.getMode() / pi.setMode(mode)
+
+Get or switch the session's Plan or Build mode. `pi.setMode()` applies that mode's model and thinking level, and resolves after `mode_select` handlers ran. This is unrelated to `ctx.mode`, which is the run mode (TUI, RPC, print).
+
+The built-in `plan-mode` extension enforces Plan mode's tool restrictions.
+
+```typescript
+if (pi.getMode() === "plan") await pi.setMode("build");
 ```
 
 ### pi.getThinkingLevel() / pi.setThinkingLevel(level)
