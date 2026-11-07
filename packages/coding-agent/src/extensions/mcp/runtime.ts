@@ -36,6 +36,7 @@ import {
 } from "@earendil-works/pi-mcp/oauth";
 import { VERSION } from "../../config.ts";
 import { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "../../core/resolve-config-value.ts";
+import { registerNamedSecret } from "../../core/secret-registry.ts";
 import { sliceTail } from "../../core/tools/truncate.ts";
 import type { McpServerEntry } from "./config.ts";
 import type { McpServerLog } from "./log.ts";
@@ -104,15 +105,18 @@ export function createDefaultTransport(
 ): McpTransport {
 	const { config, name } = entry;
 	if ("url" in config) {
+		const headers = resolveHeadersOrThrow(config.headers, `MCP server "${name}"`);
+		for (const [key, value] of Object.entries(headers ?? {})) registerNamedSecret(key, value);
 		return new StreamableHttpTransport({
 			url: config.url,
-			headers: resolveHeadersOrThrow(config.headers, `MCP server "${name}"`),
+			headers,
 			authProvider,
 		});
 	}
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries(config.env ?? {})) {
 		env[key] = resolveConfigValueOrThrow(value, `MCP server "${name}" env "${key}"`);
+		registerNamedSecret(key, env[key]);
 	}
 	return new StdioTransport({
 		command: expandHome(config.command),

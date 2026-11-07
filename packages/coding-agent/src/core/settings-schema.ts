@@ -284,6 +284,15 @@ export const SettingsSchema = Type.Object(
 				default: SETTINGS_DEFAULTS.defaultProjectTrust,
 			}),
 		),
+		shellRedactSecrets: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.shellRedactSecrets })),
+		tasks: Type.Optional(
+			Type.Object({
+				maxRunMinutes: Type.Optional(
+					Type.Number({ minimum: 0, maximum: 10080, default: SETTINGS_DEFAULTS.tasks.maxRunMinutes }),
+				),
+				maxLogBytes: Type.Optional(Type.Number({ minimum: 0, default: SETTINGS_DEFAULTS.tasks.maxLogBytes })),
+			}),
+		),
 		shellCommandPrefix: Type.Optional(
 			Type.String({ description: "Prefix prepended to every bash command, for example to enable shell aliases." }),
 		),

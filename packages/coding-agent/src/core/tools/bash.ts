@@ -15,6 +15,7 @@ import {
 import type { ExtensionContext, ToolDefinition } from "../extensions/types.ts";
 import { OutputAccumulator } from "./output-accumulator.ts";
 import { BASH_UPDATE_THROTTLE_MS, createShellRenderers } from "./renderers/bash.ts";
+import { SecretOutputRedactor } from "./secret-output-redactor.ts";
 import { type TypeBoxAgentTool, wrapToolDefinition } from "./tool-definition-wrapper.ts";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type TruncationResult } from "./truncate.ts";
 
@@ -211,7 +212,7 @@ export interface BashSpawnContext {
 
 export type BashSpawnHook = (context: BashSpawnContext) => BashSpawnContext;
 
-function resolveSpawnContext(
+export function resolveSpawnContext(
 	command: string,
 	cwd: string,
 	spawnHook: BashSpawnHook | undefined,
@@ -240,6 +241,8 @@ function resolveSpawnContext(
 }
 
 export interface BashToolOptions {
+	/** Mask credentials in shell output before storing or displaying it. */
+	redactSecrets?: boolean;
 	/** Custom operations for command execution. Default: local shell */
 	operations?: BashOperations;
 	/** Command prefix prepended to every command (for example shell setup commands) */
@@ -302,6 +305,8 @@ export function createShellToolDefinition(
 				ctx,
 			);
 			const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix });
+			const redactor = (options?.redactSecrets ?? true) ? new SecretOutputRedactor() : undefined;
+			const decoder = redactor ? new TextDecoder() : undefined;
 			let acceptingOutput = true;
 			let updateTimer: NodeJS.Timeout | undefined;
 			let updateDirty = false;
@@ -349,12 +354,14 @@ export function createShellToolDefinition(
 
 			const handleData = (data: Buffer) => {
 				if (!acceptingOutput) return;
-				output.append(data);
+				if (redactor && decoder) output.append(Buffer.from(redactor.push(decoder.decode(data, { stream: true }))));
+				else output.append(data);
 				scheduleOutputUpdate();
 			};
 
 			const finishOutput = async () => {
 				acceptingOutput = false;
+				if (redactor && decoder) output.append(Buffer.from(redactor.push(decoder.decode()) + redactor.finish()));
 				output.finish();
 				clearUpdateTimer();
 				emitOutputUpdate();

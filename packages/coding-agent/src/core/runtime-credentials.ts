@@ -1,4 +1,5 @@
 import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai";
+import { registerKnownSecret } from "./secret-registry.ts";
 
 /** Async credential store overlay for non-persistent runtime API keys. */
 export class RuntimeCredentials implements CredentialStore {
@@ -12,6 +13,7 @@ export class RuntimeCredentials implements CredentialStore {
 	}
 
 	setRuntimeApiKey(providerId: string, apiKey: string): void {
+		registerKnownSecret(apiKey);
 		this.overrides.set(providerId, apiKey);
 	}
 

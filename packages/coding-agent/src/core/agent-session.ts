@@ -3822,7 +3822,12 @@ export class AgentSession {
 				)
 			: createAllToolDefinitions(this._cwd, {
 					read: { autoResizeImages },
-					bash: { commandPrefix: shellCommandPrefix, shellPath },
+					bash: {
+						commandPrefix: shellCommandPrefix,
+						shellPath,
+						redactSecrets: this.settingsManager.getSettings().shellRedactSecrets,
+					},
+					powershell: { redactSecrets: this.settingsManager.getSettings().shellRedactSecrets },
 				});
 
 		this._baseToolDefinitions = new Map(
@@ -4071,6 +4076,7 @@ export class AgentSession {
 						this._emit({ type: "bash_execution_update", id: options?.id, delta });
 					},
 					signal: abortController.signal,
+					redactSecrets: this.settingsManager.getSettings().shellRedactSecrets,
 				},
 			);
 

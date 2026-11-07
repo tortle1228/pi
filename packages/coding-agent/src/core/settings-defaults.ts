@@ -27,6 +27,8 @@ export const SETTINGS_DEFAULTS = {
 	hideThinkingBlock: false,
 	showCacheMissNotices: false,
 	quietStartup: false,
+	shellRedactSecrets: true,
+	tasks: { maxRunMinutes: 120, maxLogBytes: 536870912 },
 	defaultProjectTrust: "ask",
 	collapseChangelog: false,
 	enableInstallTelemetry: true,

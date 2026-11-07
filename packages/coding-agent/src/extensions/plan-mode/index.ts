@@ -10,7 +10,7 @@ import { extractProposedPlan, renderProposedPlanMarkdown } from "./proposed-plan
 
 const INSPECTION_TOOLS = new Set(["read", "bash", "grep", "find", "ls", "request_user_input", "web_search"]);
 const ALWAYS_ACTIVE_IN_PLAN = ["read", "bash", "grep", "find", "ls", "request_user_input"];
-const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "tool_search", "todo"]);
+const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "tool_search", "todo", "tasks"]);
 
 const TOOLS_ENTRY = "plan-mode-tools";
 // Entries of the retired pi-extensions plan-mode package, read so its sessions get their tools back.

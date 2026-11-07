@@ -13,8 +13,21 @@ import { raceWithAbortSignal } from "../utils/abort.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { isCommandConfigValue, resolveConfigValue } from "./resolve-config-value.ts";
+import { registerConfiguredSecret, registerKnownSecret } from "./secret-registry.ts";
 
 type AuthStorageData = Record<string, Credential>;
+
+/** Registers the secrets in `data`. AuthStorage does not validate its JSON, and one bad entry must not discard the rest. */
+function registerCredentialSecrets(data: AuthStorageData): void {
+	for (const credential of Object.values(data)) {
+		if (credential?.type === "oauth") {
+			registerKnownSecret(credential.access);
+			registerKnownSecret(credential.refresh);
+		} else if (credential?.type === "api_key" && typeof credential.key === "string") {
+			registerConfiguredSecret(credential.key);
+		}
+	}
+}
 
 // On Windows, a just-removed lock directory can stay "delete pending" while another process
 // (antivirus, indexer, another pi checking the lock) still has it open. mkdir then fails with
@@ -254,6 +267,7 @@ export class ReadOnlyAuthStorage implements CredentialStore {
 		}
 
 		this.data = parsed as AuthStorageData;
+		registerCredentialSecrets(this.data);
 		return this.data;
 	}
 
@@ -369,6 +383,7 @@ export class AuthStorage implements CredentialStore {
 	}
 
 	private updateReadState(data: AuthStorageData, revision?: string): void {
+		registerCredentialSecrets(data);
 		this.readState.data = data;
 		this.readState.revision = revision;
 	}
@@ -445,7 +460,9 @@ export class AuthStorage implements CredentialStore {
 		options?.signal?.throwIfAborted();
 		if (credential?.type !== "api_key") return credential;
 		if (credential.key === undefined) return credential;
-		return { ...credential, key: resolveConfigValue(credential.key, credential.env) };
+		const key = resolveConfigValue(credential.key, credential.env);
+		registerKnownSecret(key);
+		return { ...credential, key };
 	}
 
 	async modify(

@@ -167,6 +167,14 @@ On native Windows, `app.suspend` has no default because Windows terminals do not
 | `app.message.followUp` | `alt+enter` (`ctrl+q` on Windows and WSL) | Queue follow-up message |
 | `app.message.dequeue` | `alt+up` (`alt+q` on Windows and WSL) | Restore queued messages to editor |
 
+### Background tasks
+
+Used inside `/tasks`.
+
+| Keybinding id | Default | Description |
+|--------|---------|-------------|
+| `app.tasks.stop` | `x` | Stop the selected running task |
+
 ### Tree Navigation
 
 | Keybinding id | Default | Description |

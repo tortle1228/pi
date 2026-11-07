@@ -199,6 +199,10 @@
       "$ref": "#/$defs/KeybindingValue",
       "description": "Cancel or abort"
     },
+    "app.tasks.stop": {
+      "$ref": "#/$defs/KeybindingValue",
+      "description": "Stop selected background task"
+    },
     "app.clear": {
       "$ref": "#/$defs/KeybindingValue",
       "description": "Clear editor"

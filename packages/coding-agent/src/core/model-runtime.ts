@@ -84,6 +84,7 @@ import {
 } from "./provider-composer.ts";
 import { withPersonalizedCatalog, withRemoteCatalog } from "./remote-catalog-provider.ts";
 import { RuntimeCredentials } from "./runtime-credentials.ts";
+import { isSecretName, registerConfiguredSecret, registerKnownSecret, registerNamedSecret } from "./secret-registry.ts";
 import {
 	createVirtualModel,
 	findLatestResponse,
@@ -559,22 +560,31 @@ export class ModelRuntime implements Models {
 		providerOrModel: string | AnyModel,
 		overrides: ModelRuntimeAuthOverrides = {},
 	): Promise<AuthResult | undefined> {
-		if (typeof providerOrModel === "string") return this.models.getAuth(providerOrModel, overrides);
-		const resolution = await this.models.getAuth(providerOrModel, overrides);
+		const resolution = await (typeof providerOrModel === "string"
+			? this.models.getAuth(providerOrModel, overrides)
+			: this.models.getAuth(providerOrModel, overrides));
 		if (!resolution) return undefined;
-		const configuredHeaders = resolveConfiguredModelHeaders(
-			providerOrModel,
-			this.config.getProvider(providerOrModel.provider),
-			this.extensionProviders.get(providerOrModel.provider),
-			{ ...(resolution.env ?? {}), ...(overrides.env ?? {}) },
-		);
-		return {
-			...resolution,
-			auth: {
-				...resolution.auth,
-				headers: mergeHeaders(resolution.auth.headers, configuredHeaders),
-			},
-		};
+		registerKnownSecret(resolution.auth.apiKey);
+		// Stored provider env is not resolved yet, so a value can still be a reference.
+		for (const [name, value] of Object.entries(resolution.env ?? {})) {
+			if (isSecretName(name)) registerConfiguredSecret(value);
+		}
+		const headers =
+			typeof providerOrModel === "string"
+				? resolution.auth.headers
+				: mergeHeaders(
+						resolution.auth.headers,
+						resolveConfiguredModelHeaders(
+							providerOrModel,
+							this.config.getProvider(providerOrModel.provider),
+							this.extensionProviders.get(providerOrModel.provider),
+							{ ...(resolution.env ?? {}), ...(overrides.env ?? {}) },
+						),
+					);
+		for (const [name, value] of Object.entries(headers ?? {})) registerNamedSecret(name, value ?? undefined);
+		return typeof providerOrModel === "string"
+			? resolution
+			: { ...resolution, auth: { ...resolution.auth, headers } };
 	}
 
 	private enqueueCredentialOperation<T>(providerId: string, signal: AbortSignal, task: () => Promise<T>): Promise<T> {

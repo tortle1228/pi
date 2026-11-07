@@ -24,6 +24,7 @@ const windowsKeybindings = useWindowsKeybindings();
 
 const APP_KEYBINDINGS = {
 	"app.interrupt": { defaultKeys: "escape", description: "Cancel or abort" },
+	"app.tasks.stop": { defaultKeys: "x", description: "Stop selected background task" },
 	"app.clear": { defaultKeys: "ctrl+c", description: "Clear editor" },
 	"app.exit": { defaultKeys: "ctrl+d", description: "Exit when editor is empty" },
 	"app.suspend": {
