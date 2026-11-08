@@ -4,7 +4,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import type { ImagesInputContent } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { getAgentDir } from "../../config.ts";
-import { defineTool, type ExtensionAPI } from "../../core/extensions/types.ts";
+import { defineTool, type ExtensionAPI, type ExtensionContext } from "../../core/extensions/types.ts";
 import { SETTINGS_DEFAULTS } from "../../core/settings-defaults.ts";
 
 const INPUT_MIME_TYPES: Record<string, string> = {
@@ -54,6 +54,7 @@ function nextNumber(dir: string): number {
 }
 
 export default function image(pi: ExtensionAPI): void {
+	const imageModelRef = () => pi.getSettings().imageModel ?? SETTINGS_DEFAULTS.imageModel;
 	pi.registerTool(
 		defineTool({
 			name: "generate_image",
@@ -68,8 +69,10 @@ export default function image(pi: ExtensionAPI): void {
 				"Each generate_image call uses the user's image generation allowance. Do not generate variations the user did not ask for.",
 			],
 			parameters: ImageParams,
+			// On only while the image model's provider is logged in; see synchronize below.
+			defaultActive: false,
 			async execute(_id, params, signal, _onUpdate, ctx) {
-				const ref = pi.getSettings().imageModel ?? SETTINGS_DEFAULTS.imageModel;
+				const ref = imageModelRef();
 				const slash = ref.indexOf("/");
 				const model =
 					slash > 0 ? ctx.modelRegistry.findOfType("image", ref.slice(0, slash), ref.slice(slash + 1)) : undefined;
@@ -134,4 +137,24 @@ export default function image(pi: ExtensionAPI): void {
 			},
 		}),
 	);
+	const loggedIn = (ctx: ExtensionContext) => {
+		const provider = imageModelRef().split("/")[0];
+		return provider !== "" && ctx.modelRegistry.getProviderAuthStatus(provider).configured;
+	};
+	let seenLogin: boolean | undefined;
+	const synchronize = (ctx: ExtensionContext) => {
+		seenLogin = loggedIn(ctx);
+		const active = pi.getActiveTools();
+		// An empty set means --no-tools; adding a tool there would override the user's choice.
+		if (seenLogin && active.length > 0 && !active.includes("generate_image")) {
+			pi.setActiveTools([...active, "generate_image"]);
+		} else if (!seenLogin && active.includes("generate_image")) {
+			pi.setActiveTools(active.filter((name) => name !== "generate_image"));
+		}
+	};
+	pi.on("session_start", (_event, ctx) => synchronize(ctx));
+	// /login and /logout emit no event. Sync only when the login state changed, so a manual disable stays off.
+	pi.on("before_agent_start", (_event, ctx) => {
+		if (loggedIn(ctx) !== seenLogin) synchronize(ctx);
+	});
 }

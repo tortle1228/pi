@@ -1,6 +1,6 @@
 # Image Generation
 
-The built-in `image` extension adds a `generate_image` tool. The model uses it to create an image from a prompt, or to edit or combine images you point it at, for example: `Make a hero image of a pelican on a bicycle and save it as site/hero.webp`. To turn the extension off, add `-builtin:image` to `extensions` in [settings](settings.md#resources).
+The built-in `image` extension adds a `generate_image` tool. The model uses it to create an image from a prompt, or to edit or combine images you point it at, for example: `Make a hero image of a pelican on a bicycle and save it as site/hero.webp`. The tool is on only while the provider of `imageModel` is logged in; it turns on at session start or at the next prompt after `/login`. To turn the extension off, add `-builtin:image` to `extensions` in [settings](settings.md#resources).
 
 ## Model and login
 

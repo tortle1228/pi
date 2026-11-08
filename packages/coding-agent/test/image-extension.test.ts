@@ -5,7 +5,12 @@ import { join } from "node:path";
 import type { AssistantImages, ImageModel, ImagesContext, ImagesOptions } from "@earendil-works/pi-ai";
 import type { TSchema } from "typebox";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ExtensionAPI, ExtensionToolContext, ToolDefinition } from "../src/core/extensions/types.ts";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+	ExtensionToolContext,
+	ToolDefinition,
+} from "../src/core/extensions/types.ts";
 import { SETTINGS_DEFAULTS } from "../src/core/settings-defaults.ts";
 import image from "../src/extensions/image/index.ts";
 import { builtInExtensions } from "../src/extensions/index.ts";
@@ -49,12 +54,13 @@ function success(): AssistantImages {
 
 function tool(settings: { imageModel?: string } = {}) {
 	let registered: ToolDefinition<TSchema, unknown, unknown> | undefined;
-	// The extension uses only registerTool and getSettings.
+	// execute uses only registerTool and getSettings; activation is tested separately.
 	image({
 		registerTool: (definition: ToolDefinition<TSchema, unknown, unknown>) => {
 			registered = definition;
 		},
 		getSettings: () => settings,
+		on: () => {},
 	} as unknown as ExtensionAPI);
 	if (!registered) throw new Error("generate_image was not registered");
 	const definition = registered;
@@ -156,5 +162,80 @@ describe("generate_image", () => {
 		reply = { ...success(), output: [], stopReason: "error", errorMessage: "You have hit your ChatGPT usage limit." };
 		await expect(tool()({ prompt: "x" })).rejects.toThrow("usage limit");
 		expect(existsSync(join(root, "agent", "images"))).toBe(false);
+	});
+});
+
+describe("generate_image activation", () => {
+	function host(settings: { imageModel?: string } = {}, initial = ["read", "bash"]) {
+		let active = initial;
+		const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
+		let registered: ToolDefinition<TSchema, unknown, unknown> | undefined;
+		// The fixture implements the host methods the extension uses.
+		image({
+			registerTool: (definition: ToolDefinition<TSchema, unknown, unknown>) => {
+				registered = definition;
+			},
+			getSettings: () => settings,
+			getActiveTools: () => active,
+			setActiveTools: (names: string[]) => {
+				active = names;
+			},
+			on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => void) => {
+				handlers.set(event, handler);
+			},
+		} as unknown as ExtensionAPI);
+		const logins = new Set<string>();
+		// Activation reads only the provider login state.
+		const ctx = {
+			modelRegistry: { getProviderAuthStatus: (id: string) => ({ configured: logins.has(id) }) },
+		} as unknown as ExtensionContext;
+		return {
+			registered,
+			logins,
+			active: () => active,
+			setActive: (names: string[]) => {
+				active = names;
+			},
+			emit: (event: string) => handlers.get(event)?.({}, ctx),
+		};
+	}
+
+	it("registers inactive and turns on only when the image provider is logged in", () => {
+		const h = host();
+		expect(h.registered?.defaultActive).toBe(false);
+		h.emit("session_start");
+		expect(h.active()).toEqual(["read", "bash"]);
+
+		h.logins.add("openai-codex");
+		h.emit("before_agent_start");
+		expect(h.active()).toEqual(["read", "bash", "generate_image"]);
+
+		h.logins.delete("openai-codex");
+		h.emit("before_agent_start");
+		expect(h.active()).toEqual(["read", "bash"]);
+	});
+
+	it("follows the provider of the imageModel setting", () => {
+		const h = host({ imageModel: "openrouter/some-image-model" });
+		h.logins.add("openai-codex");
+		h.emit("session_start");
+		expect(h.active()).toEqual(["read", "bash"]);
+		h.logins.add("openrouter");
+		h.emit("before_agent_start");
+		expect(h.active()).toEqual(["read", "bash", "generate_image"]);
+	});
+
+	it("keeps a manual disable until the login state changes, and respects --no-tools", () => {
+		const h = host();
+		h.logins.add("openai-codex");
+		h.emit("session_start");
+		h.setActive(["read", "bash"]);
+		h.emit("before_agent_start");
+		expect(h.active()).toEqual(["read", "bash"]);
+
+		const empty = host({}, []);
+		empty.logins.add("openai-codex");
+		empty.emit("session_start");
+		expect(empty.active()).toEqual([]);
 	});
 });
