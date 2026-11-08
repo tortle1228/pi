@@ -6,6 +6,9 @@ import { roundCost } from "../sources/models-dev.ts";
 
 export const OPENAI_LONG_CONTEXT_INPUT_THRESHOLD = 272000;
 
+/** Maximum input tokens OpenAI documents for the GPT-5.4+ long-context models. */
+export const OPENAI_MAX_INPUT_TOKENS = 922000;
+
 /** OpenAI bills prompts above 272K input tokens at 2x input and 1.5x output rates. */
 export function withOpenAiLongContextPricing(cost: ModelCost): ModelCost {
 	return {

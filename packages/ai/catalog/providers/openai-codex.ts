@@ -3,6 +3,7 @@ import { defineProvider, mergeCompat, mergeThinking } from "../define.ts";
 import {
 	enableOpenAiGrammarTools,
 	enableOpenAiMidConvoSystemMessages,
+	OPENAI_MAX_INPUT_TOKENS,
 	OPENAI_TOOL_SEARCH_MODEL_IDS,
 	openAiStandardCost,
 	supportsOpenAiXhigh,
@@ -12,17 +13,16 @@ import {
 // list without aliases. Only list models the Codex backend accepts for ChatGPT
 // accounts: GPT-5.5 and GPT-5.3 Codex Spark are rejected with "not supported
 // when using Codex with a ChatGPT account".
+// Context windows match the openai provider's 922K input limit.
 const MODELS = [
-	// GPT-6.1 uses the 500k default returned by /backend-api/codex/models.
-	{ id: "gpt-6.1-sol", name: "GPT-6.1 Sol", contextWindow: 500000 },
-	{ id: "gpt-6.1-terra", name: "GPT-6.1 Terra", contextWindow: 500000 },
-	// GPT-5.6 and GPT-6 use Codex's 272k default catalog limit.
-	{ id: "gpt-6-astra", name: "GPT-6 Astra", contextWindow: 272000 },
-	{ id: "gpt-6-sol", name: "GPT-6 Sol", contextWindow: 272000 },
-	{ id: "gpt-6-luna", name: "GPT-6 Luna", contextWindow: 272000 },
-	{ id: "gpt-5.6-luna", name: "GPT-5.6 Luna", contextWindow: 272000 },
-	{ id: "gpt-5.6-sol", name: "GPT-5.6 Sol", contextWindow: 272000 },
-	{ id: "gpt-5.6-terra", name: "GPT-5.6 Terra", contextWindow: 272000 },
+	{ id: "gpt-6.1-sol", name: "GPT-6.1 Sol", contextWindow: OPENAI_MAX_INPUT_TOKENS },
+	{ id: "gpt-6.1-terra", name: "GPT-6.1 Terra", contextWindow: OPENAI_MAX_INPUT_TOKENS },
+	{ id: "gpt-6-astra", name: "GPT-6 Astra", contextWindow: OPENAI_MAX_INPUT_TOKENS },
+	{ id: "gpt-6-sol", name: "GPT-6 Sol", contextWindow: OPENAI_MAX_INPUT_TOKENS },
+	{ id: "gpt-6-luna", name: "GPT-6 Luna", contextWindow: OPENAI_MAX_INPUT_TOKENS },
+	{ id: "gpt-5.6-luna", name: "GPT-5.6 Luna", contextWindow: OPENAI_MAX_INPUT_TOKENS },
+	{ id: "gpt-5.6-sol", name: "GPT-5.6 Sol", contextWindow: OPENAI_MAX_INPUT_TOKENS },
+	{ id: "gpt-5.6-terra", name: "GPT-5.6 Terra", contextWindow: OPENAI_MAX_INPUT_TOKENS },
 ];
 
 // Codex CLI keeps additional_tools behind its own model list.

@@ -11,7 +11,7 @@ import {
 import {
 	enableOpenAiGrammarTools,
 	enableOpenAiMidConvoSystemMessages,
-	OPENAI_LONG_CONTEXT_INPUT_THRESHOLD,
+	OPENAI_MAX_INPUT_TOKENS,
 	OPENAI_STANDARD_COSTS,
 	OPENAI_TOOL_SEARCH_MODEL_IDS,
 	withOpenAiLongContextPricing,
@@ -22,8 +22,7 @@ const BASE_URL = "https://api.openai.com/v1";
 // models.dev lists this alias, but it is not accepted by OpenAI APIs.
 const UNSUPPORTED_MODEL_IDS = new Set(["gpt-5.6"]);
 
-// Keep direct OpenAI requests in the short-context pricing tier by default. Users can opt into the
-// larger context through model overrides, so retain long-context cost metadata on the capped models.
+// models.dev reports the 1.05M total context; use the 922K input limit and keep long-context cost metadata.
 const SHORT_CONTEXT_CAPPED_MODEL_IDS = new Set([
 	"gpt-5.4",
 	"gpt-5.5",
@@ -93,7 +92,7 @@ const CLASSIFIER_MODELS: ClassifierModel<"openai-decisions">[] = [
 
 function correctUpstream(model: ChatModel): ChatModel {
 	if (SHORT_CONTEXT_CAPPED_MODEL_IDS.has(model.id)) {
-		model.contextWindow = OPENAI_LONG_CONTEXT_INPUT_THRESHOLD;
+		model.contextWindow = OPENAI_MAX_INPUT_TOKENS;
 		model.maxTokens = 128000;
 	}
 	if (LONG_CONTEXT_PRICING_MODEL_IDS.has(model.id)) {
