@@ -98,7 +98,7 @@ describe("built-in plan-mode extension", () => {
 		];
 
 		it("runs an unknown command only after the user allows it", async () => {
-			const { harness, bashExecute, select } = await createWithApproval(["Allow once"]);
+			const { harness, bashExecute, select } = await createWithApproval(["Allow"]);
 			harness.setResponses(callsThenDone([UNKNOWN]));
 
 			await harness.session.prompt("check");
@@ -120,22 +120,16 @@ describe("built-in plan-mode extension", () => {
 			]);
 		});
 
-		it("asks again after allow once, and not after allow for session", async () => {
-			const once = await createWithApproval(["Allow once", "Deny"]);
-			once.harness.setResponses(callsThenDone([UNKNOWN, UNKNOWN]));
-			await once.harness.session.prompt("check");
-			expect(once.select).toHaveBeenCalledTimes(2);
-			expect(once.bashExecute).toHaveBeenCalledTimes(1);
-
-			const session = await createWithApproval(["Allow this exact command for this session"]);
-			session.harness.setResponses(callsThenDone([UNKNOWN, UNKNOWN]));
-			await session.harness.session.prompt("check");
-			expect(session.select).toHaveBeenCalledTimes(1);
-			expect(session.bashExecute).toHaveBeenCalledTimes(2);
+		it("asks again for a repeated command", async () => {
+			const { harness, bashExecute, select } = await createWithApproval(["Allow", "Deny"]);
+			harness.setResponses(callsThenDone([UNKNOWN, UNKNOWN]));
+			await harness.session.prompt("check");
+			expect(select).toHaveBeenCalledTimes(2);
+			expect(bashExecute).toHaveBeenCalledTimes(1);
 		});
 
 		it("shows control characters as visible text but runs the command as sent", async () => {
-			const { harness, bashExecute, select } = await createWithApproval(["Allow once"]);
+			const { harness, bashExecute, select } = await createWithApproval(["Allow"]);
 			const command = "rm x \x1b[8mhidden\x1b[0m ‮fdp\nls";
 			harness.setResponses(callsThenDone([command]));
 

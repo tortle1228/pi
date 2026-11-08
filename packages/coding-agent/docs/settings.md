@@ -13,7 +13,7 @@ Add `"$schema": "https://pi.dev/schemas/settings.schema.json"` to `settings.json
 | `defaultProvider` | string | Automatic | Startup AI provider. |
 | `defaultModel` | string | Automatic | Startup model ID. |
 | `defaultThinkingLevel` | `"off" \| "minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | `"medium"` | Startup thinking level. |
-| `plan` | object | None | Plan mode defaults: `defaultProvider`, `defaultModel`, `defaultThinkingLevel`. Values left out follow the top-level defaults. `Ctrl+S` in `/model` and `/thinking` saves here while in Plan mode. |
+| `plan` | object | None | Plan mode defaults: `defaultProvider`, `defaultModel`, `defaultThinkingLevel`. `bashApproval` (`"ask"` default, or `"allow"`) controls whether bash commands that are not known inspection commands ask first; `"allow"` runs them without asking. Values left out follow the top-level defaults. `Ctrl+S` in `/model` and `/thinking` saves here while in Plan mode. |
 | `modelThinkingLevels` | object | None | Per-model startup thinking levels keyed by exact `provider/modelId`. |
 | `thinkingBudgets` | object | Built-in budgets | Token budgets for `minimal`, `low`, `medium`, and `high` thinking levels. |
 | `enabledModels` | `string[]` | All available models | Model patterns used for startup selection and model cycling. Uses the same format as `--models`. |

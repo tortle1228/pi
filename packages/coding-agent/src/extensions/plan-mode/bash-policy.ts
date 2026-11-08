@@ -6,6 +6,8 @@ interface Word {
 	/** Text the command receives. */
 	value: string;
 	redirect: boolean;
+	/** Contains an unquoted * ? [ ], which the shell expands into file names. */
+	glob: boolean;
 }
 
 interface Segment {
@@ -15,8 +17,9 @@ interface Segment {
 
 const OPERATORS = ["&&", "||", ";", "|"];
 const REDIRECTS = ["2>/dev/null", "2>&1"];
-// Unquoted globs are rejected too: a file named --pre=x would expand into an option.
-const UNQUOTED_REJECTED = /[$`\\(){}<>#*?[\]\n\r]/;
+// Unquoted globs are allowed only for programs without option-style side effects, see toSafeCommand.
+const UNQUOTED_REJECTED = /[$`\\(){}<>#\n\r]/;
+const GLOB_CHARS = /[*?[\]]/;
 const isBoundary = (char: string | undefined) => char === undefined || " \t;|&".includes(char);
 
 function parse(source: string): Segment[] | undefined {
@@ -40,7 +43,7 @@ function parse(source: string): Segment[] | undefined {
 		if (char === "&") return undefined;
 		const redirect = REDIRECTS.find((r) => source.startsWith(r, i) && isBoundary(source[i + r.length]));
 		if (redirect) {
-			words.push({ raw: redirect, value: redirect, redirect: true });
+			words.push({ raw: redirect, value: redirect, redirect: true, glob: false });
 			i += redirect.length;
 			continue;
 		}
@@ -49,6 +52,7 @@ function parse(source: string): Segment[] | undefined {
 
 		const start = i;
 		let value = "";
+		let glob = false;
 		while (!isBoundary(source[i])) {
 			const c = source[i];
 			if (c === "'") {
@@ -69,11 +73,12 @@ function parse(source: string): Segment[] | undefined {
 			} else if (UNQUOTED_REJECTED.test(c)) {
 				return undefined;
 			} else {
+				if (GLOB_CHARS.test(c)) glob = true;
 				value += c;
 				i++;
 			}
 		}
-		words.push({ raw: source.slice(start, i), value, redirect: false });
+		words.push({ raw: source.slice(start, i), value, redirect: false, glob });
 	}
 	if (words.length === 0) return undefined;
 	segments.push({ words });
@@ -109,6 +114,27 @@ const DENIED_OPTIONS: Record<string, DeniedOptions> = {
 const VERSION_COMMANDS = new Set(["node", "npm", "python", "python3", "java", "uv", "cargo", "go", "rustc"]);
 // Short forms only where they print the version: python -v is verbose mode and runs code from stdin.
 const SHORT_VERSION_FLAGS: Record<string, string> = { node: "-v", npm: "-v", java: "-version" };
+// curl is allowed only as a plain read: no output files, request bodies, config files or non-HTTP schemes.
+const CURL_FLAGS = /^(?:-[sSLIif]+|--(?:silent|show-error|location|head|include|fail|compressed))$/;
+const CURL_VALUE_FLAGS = new Set(["-H", "--header", "-A", "--user-agent", "-m", "--max-time"]);
+
+function isSafeCurl(args: string[]): boolean {
+	let urls = 0;
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (CURL_VALUE_FLAGS.has(arg)) {
+			const value = args[++i];
+			// A leading @ makes curl read the value from a local file.
+			if (value === undefined || value.startsWith("@")) return false;
+		} else if (/^https?:\/\//.test(arg)) {
+			urls++;
+		} else if (!CURL_FLAGS.test(arg)) {
+			return false;
+		}
+	}
+	return urls > 0;
+}
+
 const UNIQ_FLAGS = /^-[cdDiuz]+$/;
 
 function isSafeProgram(name: string, args: string[]): boolean {
@@ -118,6 +144,7 @@ function isSafeProgram(name: string, args: string[]): boolean {
 	if (VERSION_COMMANDS.has(name)) {
 		return args.length === 1 && (args[0] === "--version" || args[0] === SHORT_VERSION_FLAGS[name]);
 	}
+	if (name === "curl") return isSafeCurl(args);
 	if (name === "sort") return args.every((arg) => !arg.startsWith("-") || /^-[bdfghinrsuV]*(?:[kt].*)?$/.test(arg));
 	if (name === "sed") {
 		return args[0] === "-n" && /^\d+(?:,\d+)?p$/.test(args[1] ?? "") && !args.slice(2).some((a) => a.startsWith("-"));
@@ -199,7 +226,9 @@ export function toSafeCommand(command: string): string | undefined {
 	let result = "";
 	for (const { words, separator } of segments) {
 		const [program, ...rest] = words;
-		if (program.redirect) return undefined;
+		if (program.redirect || program.glob) return undefined;
+		// A file named --pre=x would expand into an option, so only programs without dangerous options may take globs.
+		if (words.some((word) => word.glob) && !UNRESTRICTED.has(program.value)) return undefined;
 		let safe: string | undefined;
 		if (program.value === "git") {
 			safe = toSafeGit(words);

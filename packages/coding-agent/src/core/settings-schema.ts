@@ -227,6 +227,12 @@ const PlanModeSettingsSchema = Type.Object(
 		defaultProvider: Type.Optional(Type.String()),
 		defaultModel: Type.Optional(Type.String()),
 		defaultThinkingLevel: Type.Optional(ModelThinkingLevelSchema),
+		bashApproval: Type.Optional(
+			Type.Union([Type.Literal("ask"), Type.Literal("allow")], {
+				description:
+					'Plan mode bash commands that are not known inspection commands: "ask" (default) or "allow" without asking.',
+			}),
+		),
 	},
 	{ description: "Plan mode defaults. Values left out follow the top-level defaults." },
 );

@@ -5,7 +5,7 @@ import { type ExtensionAPI, type ExtensionContext, isToolCallEventType } from ".
 import type { SessionEntry } from "../../core/session-manager.ts";
 import { toSafeCommand } from "./bash-policy.ts";
 import { PlanMenu, type PlanMenuChoice } from "./plan-menu.ts";
-import { PLAN_MODE_BASH_NOTES, PLAN_MODE_INSTRUCTIONS } from "./prompt.ts";
+import { PLAN_MODE_BASH_NOTES, PLAN_MODE_BASH_NOTES_UNRESTRICTED, PLAN_MODE_INSTRUCTIONS } from "./prompt.ts";
 import { extractProposedPlan, renderProposedPlanMarkdown } from "./proposed-plan.ts";
 
 const INSPECTION_TOOLS = new Set([
@@ -23,8 +23,7 @@ const INSPECTION_TOOLS = new Set([
 ]);
 const ALWAYS_ACTIVE_IN_PLAN = ["read", "bash", "grep", "find", "ls", "request_user_input"];
 const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "todo", "tasks"]);
-const ALLOW_ONCE = "Allow once";
-const ALLOW_FOR_SESSION = "Allow this exact command for this session";
+const ALLOW = "Allow";
 
 const TOOLS_ENTRY = "plan-mode-tools";
 // Entries of the retired pi-extensions plan-mode package, read so its sessions get their tools back.
@@ -81,7 +80,8 @@ export default function planMode(pi: ExtensionAPI): void {
 	let toolChanges: ToolChanges = { suppressed: [], added: [] };
 	let planForFreshSession: string | undefined;
 	let closeMenu: (() => void) | undefined;
-	const approvedCommands = new Set<string>();
+	// Read once per user prompt, not per tool call, because getSettings() copies every setting.
+	let bashApproval: "ask" | "allow" = "ask";
 
 	pi.registerFlag("plan-readonly-tools", {
 		description: "Comma-separated exact names of additional verified read-only tools",
@@ -196,7 +196,7 @@ export default function planMode(pi: ExtensionAPI): void {
 				event.input.command = safeCommand;
 				return;
 			}
-			if (approvedCommands.has(command)) return;
+			if (bashApproval === "allow") return;
 			if (ctx.mode !== "tui") {
 				return {
 					block: true,
@@ -206,19 +206,15 @@ export default function planMode(pi: ExtensionAPI): void {
 			}
 			// The user decides from this text, so the model's command must not be able to hide or reorder any of it.
 			const shownCommand = command.replace(/(?!\n)[\p{Cc}\p{Cf}]/gu, "�");
-			const choice = await ctx.ui.select(`Plan mode: allow this command?\n\n${shownCommand}`, [
-				ALLOW_ONCE,
-				ALLOW_FOR_SESSION,
-				"Deny",
-			]);
-			if (choice === ALLOW_FOR_SESSION) approvedCommands.add(command);
-			if (choice !== ALLOW_ONCE && choice !== ALLOW_FOR_SESSION) {
+			const choice = await ctx.ui.select(`Plan mode: allow this command?\n\n${shownCommand}`, [ALLOW, "Deny"]);
+			if (choice !== ALLOW) {
 				return { block: true, reason: "Plan mode: the user denied this command. Do not retry it." };
 			}
 		}
 	});
 
 	pi.on("before_agent_start", async (_event, ctx) => {
+		bashApproval = pi.getSettings().plan?.bashApproval ?? "ask";
 		const mode = pi.getMode();
 		if (mode === lastNotifiedMode(ctx.sessionManager.getBranch())) return;
 		return { message: { customType: MODE_NOTICE, content: NOTICES[mode], display: false, details: { mode } } };
@@ -231,7 +227,7 @@ export default function planMode(pi: ExtensionAPI): void {
 		const message: AgentMessage = {
 			role: "custom",
 			customType: PLAN_CONTEXT,
-			content: `${PLAN_MODE_INSTRUCTIONS}\n\n${PLAN_MODE_BASH_NOTES}`,
+			content: `${PLAN_MODE_INSTRUCTIONS}\n\n${bashApproval === "allow" ? PLAN_MODE_BASH_NOTES_UNRESTRICTED : PLAN_MODE_BASH_NOTES}`,
 			display: false,
 			timestamp: Date.now(),
 		};
@@ -246,7 +242,6 @@ export default function planMode(pi: ExtensionAPI): void {
 
 	pi.on("mode_select", async () => syncTools());
 	pi.on("session_start", async (_event, ctx) => {
-		approvedCommands.clear();
 		load(ctx);
 	});
 	pi.on("session_tree", async (_event, ctx) => load(ctx));
