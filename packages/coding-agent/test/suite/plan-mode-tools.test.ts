@@ -59,6 +59,19 @@ describe("built-in plan-mode extension", () => {
 		await harness.session.prompt("change it");
 
 		expect(writeExecute).not.toHaveBeenCalled();
+		const result = getToolResult(harness, "write");
+		expect(result.isError).toBe(true);
+		expect(result.content).toEqual([
+			{
+				type: "text",
+				text: "Plan mode: only verified inspection tools are allowed. Do not retry this tool; include the action as a step in the plan instead.",
+			},
+		]);
+		// The model must see the block and get a turn to answer, not have the run end on the error.
+		expect(harness.session.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "text", text: "done" }],
+		});
 	});
 
 	it("blocks mutating bash and allows inspection bash in plan mode", async () => {

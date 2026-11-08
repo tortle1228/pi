@@ -170,8 +170,8 @@ export default function planMode(pi: ExtensionAPI): void {
 		if (!allowed(event.toolName)) {
 			return {
 				block: true,
-				terminate: true,
-				reason: "Plan mode: only verified inspection tools are allowed. Mutating work needs Build mode.",
+				reason:
+					"Plan mode: only verified inspection tools are allowed. Do not retry this tool; include the action as a step in the plan instead.",
 			};
 		}
 		if (isToolCallEventType("bash", event)) {
