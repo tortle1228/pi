@@ -282,6 +282,12 @@ export const SettingsSchema = Type.Object(
 				{ default: SETTINGS_DEFAULTS.transport },
 			),
 		),
+		imageModel: Type.Optional(
+			Type.String({
+				default: SETTINGS_DEFAULTS.imageModel,
+				description: "Image model the generate_image tool uses, as provider/modelId.",
+			}),
+		),
 		fastMode: Type.Optional(
 			Type.Union([Type.Literal("off"), Type.Literal("fast"), Type.Literal("ultrafast")], {
 				default: SETTINGS_DEFAULTS.fastMode,

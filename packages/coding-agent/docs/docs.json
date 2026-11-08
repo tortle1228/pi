@@ -105,6 +105,10 @@
               "path": "web-search.md"
             },
             {
+              "title": "Generate Images",
+              "path": "image-generation.md"
+            },
+            {
               "title": "Share Claude Code Memory",
               "path": "claude-memory.md"
             }

@@ -1,4 +1,4 @@
-import type { Model } from "../../src/types.ts";
+import type { ImageModel, Model } from "../../src/types.ts";
 import { defineProvider, mergeCompat, mergeThinking } from "../define.ts";
 import {
 	enableOpenAiGrammarTools,
@@ -24,6 +24,10 @@ const MODELS = [
 	{ id: "gpt-5.6-sol", name: "GPT-5.6 Sol", contextWindow: OPENAI_MAX_INPUT_TOKENS },
 	{ id: "gpt-5.6-terra", name: "GPT-5.6 Terra", contextWindow: OPENAI_MAX_INPUT_TOKENS },
 ];
+
+// ChatGPT image generation runs through the Codex Responses endpoint's `image_generation` tool. It is
+// billed against the plan's usage limits, so the models carry no per-token price.
+const IMAGE_MODEL_IDS = ["gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra"];
 
 // Codex CLI keeps additional_tools behind its own model list.
 const ADDITIONAL_TOOLS_MODEL_IDS = new Set([
@@ -52,6 +56,20 @@ export default defineProvider({
 				cost: openAiStandardCost(id),
 				contextWindow,
 				maxTokens: 128000,
+			}),
+		),
+	images: () =>
+		MODELS.filter(({ id }) => IMAGE_MODEL_IDS.includes(id)).map(
+			({ id, name }): ImageModel<"openai-codex-images"> => ({
+				type: "image",
+				id,
+				name,
+				api: "openai-codex-images",
+				provider: "openai-codex",
+				baseUrl: "https://chatgpt.com/backend-api",
+				input: ["text", "image"],
+				output: ["image"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			}),
 		),
 	finalize: (model) => {

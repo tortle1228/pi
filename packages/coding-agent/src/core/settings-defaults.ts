@@ -4,6 +4,7 @@ import { DEFAULT_MAX_AGENT_RETRY_DELAY_MS } from "@earendil-works/pi-ai/utils/re
 export const SETTINGS_DEFAULTS = {
 	transport: "auto",
 	fastMode: "off",
+	imageModel: "openai-codex/gpt-6-astra",
 	sessionShareDestination: "auto",
 	steeringMode: "one-at-a-time",
 	followUpMode: "one-at-a-time",

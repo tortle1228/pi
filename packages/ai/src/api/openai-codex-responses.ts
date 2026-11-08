@@ -662,7 +662,7 @@ function resolveCodexServiceTier(
 	return responseServiceTier ?? requestServiceTier;
 }
 
-function resolveCodexUrl(baseUrl?: string): string {
+export function resolveCodexUrl(baseUrl?: string): string {
 	const raw = baseUrl && baseUrl.trim().length > 0 ? baseUrl : DEFAULT_CODEX_BASE_URL;
 	const normalized = raw.replace(/\/+$/, "");
 	if (normalized.endsWith("/codex/responses")) return normalized;
@@ -820,7 +820,7 @@ function normalizeCodexStatus(status: unknown): CodexResponseStatus | undefined 
 // SSE Parsing
 // ============================================================================
 
-async function* parseSSE(response: Response, signal?: AbortSignal): AsyncGenerator<Record<string, unknown>> {
+export async function* parseSSE(response: Response, signal?: AbortSignal): AsyncGenerator<Record<string, unknown>> {
 	if (!response.body) return;
 
 	const reader = response.body.getReader();
@@ -1617,7 +1617,7 @@ async function processWebSocketStream(
 // Error Handling
 // ============================================================================
 
-async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string }> {
+export async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string }> {
 	const raw = await response.text();
 	let message = raw || response.statusText || "Request failed";
 	let friendlyMessage: string | undefined;
@@ -1648,7 +1648,7 @@ async function parseErrorResponse(response: Response): Promise<{ message: string
 // Auth & Headers
 // ============================================================================
 
-function extractAccountId(token: string): string {
+export function extractAccountId(token: string): string {
 	try {
 		const parts = token.split(".");
 		if (parts.length !== 3) throw new Error("Invalid token");
@@ -1685,7 +1685,7 @@ function buildBaseCodexHeaders(
 	return headers;
 }
 
-function buildSSEHeaders(
+export function buildSSEHeaders(
 	defaultHeaders: Record<string, string>,
 	initHeaders: Record<string, string> | undefined,
 	additionalHeaders: ProviderHeaders | undefined,

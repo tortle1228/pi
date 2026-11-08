@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { getImageModel } from "../src/image-models.ts";
 import { generateImages } from "../src/images.ts";
 import type { ImageContent, ImageModel, ImagesContext, ProviderImagesOptions } from "../src/types.ts";
+import { resolveApiKey } from "./oauth.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -48,6 +49,8 @@ async function handleImageInput<TApi extends string>(model: ImageModel<TApi>, op
 	expect(response.output.some((item) => item.type === "image")).toBe(true);
 }
 
+const openaiCodexKey = await resolveApiKey("openai-codex");
+
 describe("Images E2E Tests", () => {
 	describe.skipIf(!process.env.OPENROUTER_API_KEY)(
 		"OpenRouter Images Provider (google/gemini-2.5-flash-image)",
@@ -63,4 +66,48 @@ describe("Images E2E Tests", () => {
 			});
 		},
 	);
+
+	describe.skipIf(!openaiCodexKey)("OpenAI Codex Images Provider (ChatGPT login)", () => {
+		const astra = getImageModel("openai-codex", "gpt-6-astra");
+		const options = (metadata?: ImagesOptionsWithExtras["metadata"]) => ({ apiKey: openaiCodexKey, metadata });
+
+		it("should generate a basic image", { retry: 2 }, async () => {
+			await basicImageGeneration(astra, options());
+		});
+
+		it("should edit an input image", { retry: 2 }, async () => {
+			await handleImageInput(astra, options());
+		});
+
+		it("should return a png with an alpha channel for a transparent background", { retry: 2 }, async () => {
+			const response = await generateImages(
+				astra,
+				{ input: [{ type: "text", text: "A red circle with no background, nothing else." }] },
+				options({ outputFormat: "png", background: "transparent" }),
+			);
+			expect(response.stopReason, `Error: ${response.errorMessage}`).toBe("stop");
+			const image = response.output.find((item) => item.type === "image");
+			const png = Buffer.from(image?.type === "image" ? image.data : "", "base64");
+			expect(png.subarray(1, 4).toString()).toBe("PNG");
+			// PNG color type 4 (gray+alpha) or 6 (RGBA).
+			expect([4, 6]).toContain(png[25]);
+		});
+
+		it("should return a jpeg when asked", { retry: 2 }, async () => {
+			const response = await generateImages(
+				astra,
+				{ input: [{ type: "text", text: "Generate a simple red circle on a plain white background. No text." }] },
+				options({ outputFormat: "jpeg", outputCompression: 60 }),
+			);
+			expect(response.stopReason, `Error: ${response.errorMessage}`).toBe("stop");
+			const image = response.output.find((item) => item.type === "image");
+			expect(image?.type === "image" ? image.mimeType : "").toBe("image/jpeg");
+			const jpeg = Buffer.from(image?.type === "image" ? image.data : "", "base64");
+			expect(jpeg.subarray(0, 2).toString("hex")).toBe("ffd8");
+		});
+
+		it("should generate with gpt-6.1-sol", { retry: 2 }, async () => {
+			await basicImageGeneration(getImageModel("openai-codex", "gpt-6.1-sol"), options());
+		});
+	});
 });

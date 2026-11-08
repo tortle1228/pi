@@ -1,6 +1,7 @@
 import type { InlineExtension } from "../core/extensions/types.ts";
 import claudeMemoryExtension from "./claude-memory/index.ts";
 import codemodeExtension from "./codemode/index.ts";
+import imageExtension from "./image/index.ts";
 import llamaExtension from "./llama/index.ts";
 import mcpExtension from "./mcp/index.ts";
 import planModeExtension from "./plan-mode/index.ts";
@@ -16,6 +17,7 @@ export const builtInExtensions: InlineExtension[] = [
 	{ name: "request-user-input", factory: requestUserInputExtension, builtin: true },
 	{ name: "claude-memory", factory: claudeMemoryExtension, builtin: true },
 	{ name: "worktree", factory: worktreeExtension, builtin: true },
+	{ name: "image", factory: imageExtension, builtin: true },
 	// Replaceable: an extension that registers `codemode`, `tool_search`, `web_search`, or `/mcp` (such as a
 	// third-party MCP extension) takes over instead of running alongside the built-in one.
 	{ name: "codemode", factory: codemodeExtension, replaceable: true, builtin: true },

@@ -1,3 +1,4 @@
+import { openaiCodexImagesApi } from "../../api/openai-codex-images.lazy.ts";
 import type { generateImages as generateImagesOpenRouterFunction } from "../../api/openrouter-images.ts";
 import { registerImagesApiProvider } from "../../images-api-registry.ts";
 import type {
@@ -51,6 +52,10 @@ export function registerBuiltInImagesApiProviders(): void {
 	registerImagesApiProvider({
 		api: "openrouter-images",
 		generateImages: generateImagesOpenRouter,
+	});
+	registerImagesApiProvider({
+		api: "openai-codex-images",
+		generateImages: openaiCodexImagesApi().generateImages,
 	});
 }
 

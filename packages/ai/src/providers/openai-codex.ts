@@ -1,8 +1,9 @@
+import { openaiCodexImagesApi } from "../api/openai-codex-images.lazy.ts";
 import { openAICodexResponsesApi } from "../api/openai-codex-responses.lazy.ts";
 import { lazyOAuth } from "../auth/helpers.ts";
 import { loadOpenAICodexOAuth } from "../auth/oauth/load.ts";
 import { createProvider, type Provider } from "../models.ts";
-import { OPENAI_CODEX_MODELS } from "./openai-codex.models.ts";
+import { OPENAI_CODEX_IMAGE_MODELS, OPENAI_CODEX_MODELS } from "./openai-codex.models.ts";
 
 export function openaiCodexProvider(): Provider<"openai-codex-responses"> {
 	return createProvider({
@@ -16,7 +17,8 @@ export function openaiCodexProvider(): Provider<"openai-codex-responses"> {
 				load: loadOpenAICodexOAuth,
 			}),
 		},
-		models: Object.values(OPENAI_CODEX_MODELS),
+		models: [...Object.values(OPENAI_CODEX_MODELS), ...Object.values(OPENAI_CODEX_IMAGE_MODELS)],
 		api: openAICodexResponsesApi(),
+		images: { "openai-codex-images": openaiCodexImagesApi() },
 	});
 }
