@@ -53,4 +53,3 @@ Most providers reuse an existing API such as `openai-completions`; skip this ste
 ## 7. Documentation
 
 - `packages/ai/README.md`: add to providers table, document options/auth, add env vars.
-- `packages/ai/CHANGELOG.md`: add entry under `## [Unreleased]`.

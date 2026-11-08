@@ -77,23 +77,6 @@ If rebase conflicts occur:
 
 For testing pi's interactive mode, load and follow [.pi/skills/interactive-testing.md](.pi/skills/interactive-testing.md).
 
-## Changelog
-
-Location: `packages/*/CHANGELOG.md` (one per package).
-
-Sections under `## [Unreleased]`: `### Breaking Changes` (API changes requiring migration), `### Added`, `### Changed`, `### Fixed`, `### Removed`.
-
-Rules:
-
-- All new entries go under `## [Unreleased]`. Read the full section first and append to existing subsections; never duplicate them.
-- Released version sections (e.g. `## [0.12.2]`) are immutable; never modify them.
-- Do not create changelog entries when the work targets a branch other than `main`
-
-Attribution:
-
-- Internal (from issues): `Fixed foo bar ([#123](https://github.com/earendil-works/pi/issues/123))`
-- External contributions: `Added feature X ([#456](https://github.com/earendil-works/pi/pull/456) by [@username](https://github.com/username))`
-
 ## User Override
 
 If the user's instructions conflict with any rule in this document, ask for explicit confirmation before overriding. Only then execute their instructions.

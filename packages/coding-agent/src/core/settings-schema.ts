@@ -356,13 +356,13 @@ export const SettingsSchema = Type.Object(
 		),
 		collapseChangelog: Type.Optional(
 			Type.Boolean({
-				description: "Show the condensed changelog after update; use /changelog for the full changelog.",
+				description: "Show condensed extension package changelogs after update.",
 				default: SETTINGS_DEFAULTS.collapseChangelog,
 			}),
 		),
 		enableInstallTelemetry: Type.Optional(
 			Type.Boolean({
-				description: "Send an anonymous version and update ping after changelog-detected updates.",
+				description: "Send an anonymous version and update ping after version changes.",
 				default: SETTINGS_DEFAULTS.enableInstallTelemetry,
 			}),
 		),

@@ -125,7 +125,7 @@ import type { TruncationResult } from "../../core/tools/truncate.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "../../core/trust-manager.ts";
 import { getUsageCostBreakdown } from "../../core/usage-totals.ts";
 import { addMcpServerConfig, loadMcpConfig } from "../../extensions/mcp/config.ts";
-import { getChangelogPath, getNewEntries, normalizeChangelogLinks, parseChangelog } from "../../utils/changelog.ts";
+import { getNewEntries, parseChangelog } from "../../utils/changelog.ts";
 import { copyToClipboard, readClipboardFilePaths, readClipboardText } from "../../utils/clipboard.ts";
 import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipboard-image.ts";
 import { parseGitUrl } from "../../utils/git.ts";
@@ -509,7 +509,6 @@ export class InteractiveMode {
 
 	private lastSigintTime = 0;
 	private lastEscapeTime = 0;
-	private changelogMarkdown: string | undefined = undefined;
 	private extensionChangelogUpdates: ExtensionChangelogUpdate[] = [];
 	private startupNoticesShown = false;
 	/** Last cache-warming notice, extended in place while it is the last chat line. */
@@ -868,7 +867,7 @@ export class InteractiveMode {
 		}
 		this.startupNoticesShown = true;
 
-		if (!this.changelogMarkdown && this.extensionChangelogUpdates.length === 0) {
+		if (this.extensionChangelogUpdates.length === 0) {
 			return;
 		}
 
@@ -876,23 +875,7 @@ export class InteractiveMode {
 			this.chatContainer.addChild(new Spacer(1));
 		}
 		this.chatContainer.addChild(new DynamicBorder());
-		if (this.changelogMarkdown) {
-			if (this.settingsManager.getCollapseChangelog()) {
-				const versionMatch = this.changelogMarkdown.match(/##\s+\[?(\d+\.\d+\.\d+)\]?/);
-				const latestVersion = versionMatch ? versionMatch[1] : this.version;
-				const condensedText = `Updated to v${latestVersion}. Use ${theme.bold("/changelog")} to view full changelog.`;
-				this.chatContainer.addChild(new Text(condensedText, 1, 0));
-			} else {
-				this.chatContainer.addChild(new ThemedText(() => theme.bold(theme.fg("accent", "What's New")), 1, 0));
-				this.chatContainer.addChild(new Spacer(1));
-				this.chatContainer.addChild(this.createChangelogMarkdown(this.changelogMarkdown.trim(), 1, 0));
-				this.chatContainer.addChild(new Spacer(1));
-			}
-		}
 		if (this.extensionChangelogUpdates.length > 0) {
-			if (this.changelogMarkdown) {
-				this.chatContainer.addChild(new Spacer(1));
-			}
 			if (this.settingsManager.getCollapseChangelog()) {
 				const condensedText = this.extensionChangelogUpdates
 					.map((update) => `Updated ${update.name} to v${update.version}.`)
@@ -986,8 +969,7 @@ export class InteractiveMode {
 
 		this.registerSignalHandlers();
 
-		// Load changelogs (only show new entries, skip for resumed sessions)
-		this.changelogMarkdown = this.getChangelogForDisplay();
+		this.recordVersionAndReportInstall();
 		this.extensionChangelogUpdates = this.getExtensionChangelogUpdates();
 
 		// Fullscreen renders on the alternate screen, so text printed to stdout here would stay in the shell
@@ -1361,40 +1343,12 @@ export class InteractiveMode {
 		return undefined;
 	}
 
-	/**
-	 * Get changelog entries to display on startup.
-	 * Only shows new entries since last seen version, skips for resumed sessions.
-	 */
-	private getChangelogForDisplay(): string | undefined {
-		// Skip changelog for resumed/continued sessions (already have messages)
-		if (this.session.state.messages.length > 0) {
-			return undefined;
-		}
-
-		const lastVersion = this.settingsManager.getLastChangelogVersion();
-		const changelogPath = getChangelogPath();
-		const entries = parseChangelog(changelogPath);
-
-		if (!lastVersion) {
-			// Fresh install - record the version, send telemetry, don't show changelog
-			this.settingsManager.setLastChangelogVersion(VERSION);
-			this.reportInstallTelemetry(VERSION);
-			return undefined;
-		}
-
-		const newEntries = getNewEntries(entries, lastVersion);
-		if (!newEntries) {
-			// Unreadable saved version: show nothing and record the current one so later updates compare again
-			this.settingsManager.setLastChangelogVersion(VERSION);
-			return undefined;
-		}
-		if (newEntries.length > 0) {
-			this.settingsManager.setLastChangelogVersion(VERSION);
-			this.reportInstallTelemetry(VERSION);
-			return newEntries.map((e) => normalizeChangelogLinks(e.content, e)).join("\n\n");
-		}
-
-		return undefined;
+	/** Records the running version on new sessions and pings install telemetry when it changed. */
+	private recordVersionAndReportInstall(): void {
+		if (this.session.state.messages.length > 0) return;
+		if (this.settingsManager.getLastChangelogVersion() === VERSION) return;
+		this.settingsManager.setLastChangelogVersion(VERSION);
+		this.reportInstallTelemetry(VERSION);
 	}
 
 	private getExtensionChangelogUpdates(): ExtensionChangelogUpdate[] {
@@ -3362,11 +3316,6 @@ export class InteractiveMode {
 			}
 			if (text === "/session") {
 				this.handleSessionCommand();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/changelog") {
-				this.handleChangelogCommand();
 				this.editor.setText("");
 				return;
 			}
@@ -7047,27 +6996,6 @@ export class InteractiveMode {
 
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new ThemedText(renderInfo, 1, 0));
-		this.ui.requestRender();
-	}
-
-	private handleChangelogCommand(): void {
-		const changelogPath = getChangelogPath();
-		const allEntries = parseChangelog(changelogPath);
-
-		const changelogMarkdown =
-			allEntries.length > 0
-				? allEntries
-						.reverse()
-						.map((e) => normalizeChangelogLinks(e.content, e))
-						.join("\n\n")
-				: "No changelog entries found.";
-
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new DynamicBorder());
-		this.chatContainer.addChild(new ThemedText(() => theme.bold(theme.fg("accent", "What's New")), 1, 0));
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(this.createChangelogMarkdown(changelogMarkdown, 1, 1));
-		this.chatContainer.addChild(new DynamicBorder());
 		this.ui.requestRender();
 	}
 

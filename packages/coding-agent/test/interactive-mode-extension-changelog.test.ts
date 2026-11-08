@@ -24,7 +24,6 @@ type ExtensionChangelogContext = {
 
 type StartupNoticesContext = {
 	startupNoticesShown: boolean;
-	changelogMarkdown: string | undefined;
 	extensionChangelogUpdates: ExtensionChangelogUpdate[];
 	version: string;
 	chatContainer: Container;
@@ -192,7 +191,6 @@ describe("InteractiveMode startup notices", () => {
 		const runner = { extensions } as unknown as ExtensionRunner;
 		const context: StartupNoticesContext = {
 			startupNoticesShown: false,
-			changelogMarkdown: "## [2.0.0]\n\n- :warning: Pi change",
 			extensionChangelogUpdates: [
 				{
 					name: "pi-demo",
@@ -217,10 +215,9 @@ describe("InteractiveMode startup notices", () => {
 
 	const replaceShortcodes: MarkdownTransformer = (markdown) => markdown.replaceAll(":warning:", "⚠");
 
-	test("runs changelog transformers on What's New and Extension Updates", () => {
+	test("runs changelog transformers on Extension Updates", () => {
 		const rendered = renderNotices([extensionWithTransformer(replaceShortcodes, ["changelog"])]);
 
-		expect(rendered).toContain("⚠ Pi change");
 		expect(rendered).toContain("⚠ Demo change");
 		expect(rendered).not.toContain(":warning:");
 	});
@@ -230,7 +227,6 @@ describe("InteractiveMode startup notices", () => {
 			extensionWithTransformer(replaceShortcodes, ["user", "assistant", "assistant-thinking"]),
 		]);
 
-		expect(rendered).toContain(":warning: Pi change");
 		expect(rendered).toContain(":warning: Demo change");
 	});
 });
