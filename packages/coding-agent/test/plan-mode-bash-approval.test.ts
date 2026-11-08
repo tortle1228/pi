@@ -22,9 +22,14 @@ function setup(settings: Settings) {
 	} as unknown as ExtensionAPI;
 	planMode(api);
 	const select = vi.fn(async () => "Deny");
-	const ctx = { mode: "tui", ui: { select }, sessionManager: { getBranch: () => [] } } as unknown as ExtensionContext;
+	const ctx = {
+		mode: "tui",
+		ui: { select },
+		sessionManager: { getBranch: () => [], buildContextEntries: () => [] },
+	} as unknown as ExtensionContext;
 	// The setting is read when the user prompt starts.
-	const start = () => handlers.get("before_agent_start")?.({}, ctx);
+	const start = () =>
+		handlers.get("before_agent_start")?.({}, ctx) as Promise<{ message: { content: string } } | undefined>;
 	const callBash = async (command: string) => {
 		await start();
 		return handlers.get("tool_call")?.(
@@ -32,11 +37,7 @@ function setup(settings: Settings) {
 			ctx,
 		);
 	};
-	const context = async () => {
-		await start();
-		return handlers.get("context")?.({ messages: [] }, ctx) as Promise<{ messages: { content: string }[] }>;
-	};
-	return { callBash, context, select };
+	return { callBash, start, select };
 }
 
 describe("Plan mode bash approval setting", () => {
@@ -47,9 +48,9 @@ describe("Plan mode bash approval setting", () => {
 	});
 
 	it("runs unknown commands without asking when set to allow", async () => {
-		const { callBash, context, select } = setup({ plan: { bashApproval: "allow" } });
+		const { callBash, start, select } = setup({ plan: { bashApproval: "allow" } });
 		expect(await callBash("npm test")).toBeUndefined();
 		expect(select).not.toHaveBeenCalled();
-		expect((await context()).messages[0].content).toContain("without asking the user");
+		expect((await start())?.message.content).toContain("without asking the user");
 	});
 });
