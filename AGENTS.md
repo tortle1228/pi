@@ -73,6 +73,16 @@ If rebase conflicts occur:
 - If a conflict is in a file you did not modify, abort and ask the user.
 - Never force push.
 
+## Upstream Sync
+
+This repo is a personal fork of earendil-works/pi. [FORK.md](FORK.md) records the last reviewed upstream commit, fork features and skipped commits.
+
+- For any upstream review or port, load and follow [.pi/skills/upstream-sync.md](.pi/skills/upstream-sync.md), then update FORK.md.
+- Fetch upstream by URL and SHA; do not add a remote.
+- One commit per upstream commit with the upstream subject and an `Upstream: <full sha>` trailer; add `Adapted: <reason>` when the port differs.
+- Never bring back removed parts (CHANGELOGs, `/changelog`, upstream contribution files, durable, storage, env, P2, P3, Chord, apps). Drop their hunks.
+- Before claiming or fixing a bug, show it with a test that fails on the code before the fix. If it does not fail, withdraw the claim.
+
 ## Testing pi Interactive Mode with tmux
 
 For testing pi's interactive mode, load and follow [.pi/skills/interactive-testing.md](.pi/skills/interactive-testing.md).
