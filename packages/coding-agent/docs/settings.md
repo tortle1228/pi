@@ -125,6 +125,7 @@ See [Themes](themes.md) and [Terminal Setup](terminal-setup.md) for format and p
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `transport` | `"auto" \| "sse" \| "websocket" \| "websocket-cached"` | `"auto"` | Preferred transport for AI providers that support multiple transports. |
+| `fastMode` | `"off" \| "fast" \| "ultrafast"` | `"off"` | OpenAI and OpenAI Codex service tier, also set with `/fast`. `fast` sends `service_tier: "priority"` (~2x cost). `ultrafast` sends `"ultrafast"` (6x cost) for `gpt-6-astra` and `gpt-6.1-sol` on the `openai` provider and `"priority"` for other models. Other providers are unaffected. Only read from the global settings file; project settings are ignored. The Codex backend does not speed up `ultrafast`, so `openai-codex` always uses `priority`. |
 | `httpProxy` | string | None | Proxy URL applied as `HTTP_PROXY` and `HTTPS_PROXY` for Pi-managed HTTP clients. **Can only be set in agent-directory settings.** |
 | `httpIdleTimeoutMs` | number \| `"disabled"` | `300000` | HTTP header and body idle timeout in milliseconds. Set to `0` or `"disabled"` to disable. |
 | `websocketConnectTimeoutMs` | number \| `"disabled"` | `15000` | WebSocket connection timeout in milliseconds. Set to `0` or `"disabled"` to disable. |

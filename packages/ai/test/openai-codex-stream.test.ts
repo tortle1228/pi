@@ -1193,6 +1193,8 @@ describe("openai-codex streaming", () => {
 		["gpt-5.1-codex", "priority", 2],
 		["gpt-5.5", "flex", 0.5],
 		["gpt-5.5", "priority", 2.5],
+		// Codex serves ultrafast at standard speed and reports "default", so it is not billed 6x.
+		["gpt-6.1-sol", "ultrafast", 1],
 	] as const)(
 		"uses the client-sent %s service tier for %s when Codex echoes default",
 		async (modelId, serviceTier, multiplier) => {
@@ -1275,7 +1277,8 @@ describe("openai-codex streaming", () => {
 				messages: [{ role: "user", content: "Say hello", timestamp: Date.now() }],
 			});
 
-			const result = await streamOpenAICodexResponses(model, context, {
+			// streamSimple must forward serviceTier, otherwise no multiplier applies
+			const result = await streamSimpleOpenAICodexResponses(model, context, {
 				apiKey: token,
 				serviceTier,
 				transport: "sse",

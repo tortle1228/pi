@@ -40,9 +40,75 @@
         },
         "defaultThinkingLevel": {
           "$ref": "#/$defs/ModelThinkingLevel"
+        },
+        "bashApproval": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "ask"
+            },
+            {
+              "type": "string",
+              "const": "allow"
+            }
+          ],
+          "description": "Plan mode bash commands that are not known inspection commands: \"ask\" (default) or \"allow\" without asking."
         }
       },
       "description": "Plan mode defaults. Values left out follow the top-level defaults."
+    },
+    "profiles": {
+      "type": "object",
+      "patternProperties": {
+        "^.*$": {
+          "type": "object",
+          "required": [
+            "build",
+            "plan"
+          ],
+          "properties": {
+            "build": {
+              "type": "object",
+              "required": [
+                "provider",
+                "model",
+                "thinkingLevel"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "thinkingLevel": {
+                  "$ref": "#/$defs/ModelThinkingLevel"
+                }
+              }
+            },
+            "plan": {
+              "type": "object",
+              "required": [
+                "provider",
+                "model",
+                "thinkingLevel"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "thinkingLevel": {
+                  "$ref": "#/$defs/ModelThinkingLevel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "Saved Plan/Build model profiles, keyed by name. Manage them with /profile."
     },
     "modelThinkingLevels": {
       "type": "object",
@@ -73,6 +139,24 @@
         }
       ],
       "default": "auto"
+    },
+    "fastMode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "off"
+        },
+        {
+          "type": "string",
+          "const": "fast"
+        },
+        {
+          "type": "string",
+          "const": "ultrafast"
+        }
+      ],
+      "default": "off",
+      "description": "OpenAI/OpenAI Codex service tier. \"fast\" sends priority (~2x cost); \"ultrafast\" sends ultrafast (6x cost) for gpt-6-astra and gpt-6.1-sol on the openai provider, else priority. Global settings only."
     },
     "sessionShareDestination": {
       "anyOf": [

@@ -1,6 +1,9 @@
 import { Type } from "typebox";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { stream as streamOpenAIResponses } from "../src/api/openai-responses.ts";
+import {
+	stream as streamOpenAIResponses,
+	streamSimple as streamSimpleOpenAIResponses,
+} from "../src/api/openai-responses.ts";
 import { getModel, normalizeContext } from "../src/compat.ts";
 import type { Model } from "../src/types.ts";
 
@@ -490,6 +493,7 @@ describe("openai-responses provider defaults", () => {
 		// GPT-6 models report Fast mode as "fast" even when "priority" is requested (#10034)
 		["gpt-6-luna", "priority", "fast", 2],
 		["gpt-6-luna", "fast", "fast", 2],
+		["gpt-6.1-sol", "ultrafast", "ultrafast", 6],
 	] as const)(
 		"applies %s cost multiplier for requested %s and returned %s service tier",
 		async (modelId, serviceTier, responseServiceTier, multiplier) => {
@@ -519,7 +523,8 @@ describe("openai-responses provider defaults", () => {
 				}),
 			);
 
-			const stream = streamOpenAIResponses(
+			// streamSimple must forward serviceTier to the request body
+			const stream = streamSimpleOpenAIResponses(
 				model,
 				normalizeContext({
 					systemPrompt: "sys",
@@ -530,6 +535,8 @@ describe("openai-responses provider defaults", () => {
 
 			const result = await stream.result();
 
+			const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));
+			expect(body.service_tier).toBe(serviceTier);
 			expect(result.usage.cost.input).toBeCloseTo(model.cost.input * multiplier * tokenScale, 12);
 			expect(result.usage.cost.output).toBeCloseTo(model.cost.output * multiplier * tokenScale, 12);
 			expect(result.usage.cost.total).toBeCloseTo(

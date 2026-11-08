@@ -10,6 +10,7 @@
 
 ### Added
 
+- Added OpenAI and OpenAI Codex fast mode (global setting only): `/fast [off|fast|ultrafast]`, a Fast mode item in `/settings`, and the `fastMode` setting. `ultrafast` applies to `gpt-6-astra` and `gpt-6.1-sol` on `openai`; everything else, including `openai-codex`, uses fast.
 - Added `/profile` to save, load, and delete named Plan/Build model and thinking level profiles (`profiles` setting). Loading a profile overwrites the build and plan defaults and applies to the current session.
 - Added xAI web search and a separate `x_search` tool. With an `xai` model, `web_search` uses xAI's server-side web search and `x_search` searches posts on X. Both send only the query.
 - Added Plan and Build modes with a separate model and thinking level per mode, `plan` defaults in settings, `pi.getMode()`, `pi.setMode()`, and the `mode_select` extension event.

@@ -524,6 +524,7 @@ export const streamSimple: StreamFunction<"openai-codex-responses", SimpleStream
 	const base = {
 		...buildBaseOptions(model, context, options, apiKey),
 		toolChoice: options?.toolChoice,
+		serviceTier: options?.serviceTier,
 	} satisfies OpenAICodexResponsesOptions;
 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
 	const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;
@@ -629,6 +630,8 @@ function getServiceTierCostMultiplier(
 			return 0.5;
 		case "priority":
 			return model.id === "gpt-5.5" ? 2.5 : 2;
+		case "ultrafast":
+			return 6;
 		default:
 			return 1;
 	}

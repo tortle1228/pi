@@ -22,6 +22,7 @@ The runtime example shows how to build a recreate function that closes over proc
 | `12-full-control.ts` | Replace everything, no discovery |
 | `13-session-runtime.ts` | Manage runtime-backed session replacement |
 | `14-codemode-mcp.ts` | Add the `codemode`, `tool_search`, and MCP extensions |
+| `15-service-tier-benchmark.ts` | Measure OpenAI fast/ultrafast tiers (spends real money) |
 
 ## Running
 

@@ -10,6 +10,7 @@ import { CacheWarmer } from "./cache-warmer.ts";
 import { getClientIdentity } from "./client-identity.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import type { ExtensionRunner, LoadExtensionsResult, SessionStartEvent, ToolDefinition } from "./extensions/index.ts";
+import { resolveFastModeServiceTier } from "./fast-mode.ts";
 import { createToolNameMatcher } from "./mcp-servers.ts";
 import { convertToLlm } from "./messages.ts";
 import { findInitialModel } from "./model-resolver.ts";
@@ -411,6 +412,11 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		convertToLlm: convertToLlmWithBlockImages,
 		streamFn: async (model, context, options) => {
 			const requestOptions = buildRequestOptions(options);
+			requestOptions.serviceTier ??= resolveFastModeServiceTier(
+				model.provider,
+				model.id,
+				settingsManager.getFastMode(),
+			);
 			// Compaction and summaries use their own routing ids; only session requests
 			// replace the cache entry, so warming restarts from them. Keep warming while
 			// the current transcript still extends the request's prefix. Agent state may

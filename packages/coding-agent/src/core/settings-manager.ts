@@ -14,6 +14,7 @@ import type {
 	CacheWarmingMode,
 	CompactionModelOverride,
 	DefaultProjectTrust,
+	FastModeSetting,
 	FullscreenExitOutput,
 	MermaidRenderingMode,
 	PackageSource,
@@ -36,6 +37,7 @@ export type {
 	CompactionModelOverride,
 	CompactionSettings,
 	DefaultProjectTrust,
+	FastModeSetting,
 	FullscreenExitOutput,
 	ImageSettings,
 	MarkdownSettings,
@@ -852,6 +854,17 @@ export class SettingsManager {
 	setTransport(transport: TransportSetting): void {
 		this.globalSettings.transport = transport;
 		this.markModified("transport");
+		this.save();
+	}
+
+	getFastMode(): FastModeSetting {
+		// Global only: a project file must not silently raise the request price.
+		return this.globalSettings.fastMode ?? SETTINGS_DEFAULTS.fastMode;
+	}
+
+	setFastMode(mode: FastModeSetting): void {
+		this.globalSettings.fastMode = mode;
+		this.markModified("fastMode");
 		this.save();
 	}
 

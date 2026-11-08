@@ -93,6 +93,7 @@ import type {
 	UserBashEventResult,
 	WorkingIndicatorOptions,
 } from "../../core/extensions/index.ts";
+import { FAST_MODES } from "../../core/fast-mode.ts";
 import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/footer-data-provider.ts";
 import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
@@ -114,7 +115,7 @@ import {
 	sessionEntryToContextMessages,
 	type UsageEntry,
 } from "../../core/session-manager.ts";
-import type { FullscreenExitOutput, TuiMode } from "../../core/settings-manager.ts";
+import type { FastModeSetting, FullscreenExitOutput, TuiMode } from "../../core/settings-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import { getSourcePackageKey, type SourceInfo } from "../../core/source-info.ts";
 import { shouldIncludePiDocsSection } from "../../core/system-prompt.ts";
@@ -459,6 +460,12 @@ interface ExtensionChangelogUpdate {
 	version: string;
 	markdown: string;
 }
+
+const FAST_MODE_STATUS: Record<FastModeSetting, string> = {
+	off: "Fast mode: off",
+	fast: "Fast mode: fast (OpenAI priority tier, ~2x cost)",
+	ultrafast: "Fast mode: ultrafast (openai gpt-6-astra/gpt-6.1-sol only, 6x cost; everything else uses fast)",
+};
 
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
@@ -3312,6 +3319,11 @@ export class InteractiveMode {
 				this.handleThinkingCommand(searchTerm);
 				return;
 			}
+			if (text === "/fast" || text.startsWith("/fast ")) {
+				this.editor.setText("");
+				this.handleFastCommand(text.slice(5).trim());
+				return;
+			}
 			if (text === "/profile" || text.startsWith("/profile ")) {
 				this.editor.setText("");
 				await this.handleProfileCommand(text.slice(8).trim());
@@ -5100,6 +5112,7 @@ export class InteractiveMode {
 					steeringMode: this.session.steeringMode,
 					followUpMode: this.session.followUpMode,
 					transport: this.settingsManager.getTransport(),
+					fastMode: this.settingsManager.getFastMode(),
 					sessionShareDestination: this.settingsManager.getSessionShareDestination(),
 					httpIdleTimeoutMs: this.settingsManager.getHttpIdleTimeoutMs(),
 					cacheWarmingMode: this.settingsManager.getCacheWarmingMode(),
@@ -5171,6 +5184,9 @@ export class InteractiveMode {
 					onTransportChange: (transport) => {
 						this.settingsManager.setTransport(transport);
 						this.session.agent.transport = transport;
+					},
+					onFastModeChange: (mode) => {
+						this.settingsManager.setFastMode(mode);
 					},
 					onSessionShareDestinationChange: (destination) => {
 						this.settingsManager.setSessionShareDestination(destination);
@@ -5397,6 +5413,20 @@ export class InteractiveMode {
 		}
 
 		this.selectThinkingLevel(level, false);
+	}
+
+	private handleFastCommand(arg: string): void {
+		const current = this.settingsManager.getFastMode();
+		const requested = arg.toLowerCase();
+		const mode = requested
+			? FAST_MODES.find((candidate) => candidate === requested)
+			: FAST_MODES[(FAST_MODES.indexOf(current) + 1) % FAST_MODES.length];
+		if (!mode) {
+			this.showError(`Unknown fast mode "${arg}". Available modes: ${FAST_MODES.join(", ")}.`);
+			return;
+		}
+		this.settingsManager.setFastMode(mode);
+		this.showStatus(FAST_MODE_STATUS[mode]);
 	}
 
 	private selectThinkingLevel(level: ThinkingLevel, persist: boolean): void {

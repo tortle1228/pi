@@ -274,6 +274,13 @@ export const SettingsSchema = Type.Object(
 				{ default: SETTINGS_DEFAULTS.transport },
 			),
 		),
+		fastMode: Type.Optional(
+			Type.Union([Type.Literal("off"), Type.Literal("fast"), Type.Literal("ultrafast")], {
+				default: SETTINGS_DEFAULTS.fastMode,
+				description:
+					'OpenAI/OpenAI Codex service tier. "fast" sends priority (~2x cost); "ultrafast" sends ultrafast (6x cost) for gpt-6-astra and gpt-6.1-sol on the openai provider, else priority. Global settings only.',
+			}),
+		),
 		sessionShareDestination: Type.Optional(
 			Type.Union([Type.Literal("auto"), Type.Literal("gist"), Type.Literal("radius")], {
 				description:
@@ -542,6 +549,7 @@ export type CodemodeMode = Static<typeof CodemodeModeSchema>;
 export interface CodemodeSettings extends Static<typeof CodemodeSettingsSchema> {}
 export type DefaultProjectTrust = NonNullable<SettingsInput["defaultProjectTrust"]>;
 export type QuietStartup = NonNullable<SettingsInput["quietStartup"]>;
+export type FastModeSetting = NonNullable<SettingsInput["fastMode"]>;
 export type TransportSetting = NonNullable<SettingsInput["transport"]>;
 export type SessionShareDestination = NonNullable<SettingsInput["sessionShareDestination"]>;
 export type PackageSource = Static<typeof PackageSourceSchema>;

@@ -389,6 +389,8 @@ export interface SimpleStreamOptions extends StreamOptions {
 	/** Provider-neutral tool selection for simple requests. When omitted, adapters use provider-specific behavior. */
 	toolChoice?: ToolChoice;
 	reasoning?: ThinkingLevel;
+	/** OpenAI Responses service tier (e.g. "priority" for fast mode). Ignored by other providers. */
+	serviceTier?: "auto" | "default" | "flex" | "priority" | "fast" | "ultrafast";
 	/** Ask a capable provider to return a durable handle and continue the request asynchronously. */
 	deferred?: boolean | { window?: "15m" | "1h" | "24h" };
 	/** Custom token budgets for thinking levels (token-based providers only) */

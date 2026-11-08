@@ -12,12 +12,14 @@ import {
 	Text,
 	type WheelScrollLines,
 } from "@earendil-works/pi-tui";
+import { FAST_MODES } from "../../../core/fast-mode.ts";
 import { formatHttpIdleTimeoutMs, HTTP_IDLE_TIMEOUT_CHOICES } from "../../../core/http-dispatcher.ts";
 import { SETTINGS_DEFAULTS } from "../../../core/settings-defaults.ts";
 import {
 	CACHE_WARMING_MODES,
 	type CacheWarmingMode,
 	type DefaultProjectTrust,
+	type FastModeSetting,
 	type FullscreenExitOutput,
 	type MermaidRenderingMode,
 	type QuietStartup,
@@ -71,6 +73,7 @@ export interface SettingsConfig {
 	steeringMode: "all" | "one-at-a-time";
 	followUpMode: "all" | "one-at-a-time";
 	transport: Transport;
+	fastMode: FastModeSetting;
 	sessionShareDestination: SessionShareDestination;
 	httpIdleTimeoutMs: number;
 	cacheWarmingMode: CacheWarmingMode;
@@ -113,6 +116,7 @@ export interface SettingsCallbacks {
 	onSteeringModeChange: (mode: "all" | "one-at-a-time") => void;
 	onFollowUpModeChange: (mode: "all" | "one-at-a-time") => void;
 	onTransportChange: (transport: Transport) => void;
+	onFastModeChange: (mode: FastModeSetting) => void;
 	onSessionShareDestinationChange: (destination: SessionShareDestination) => void;
 	onHttpIdleTimeoutMsChange: (timeoutMs: number) => void;
 	onCacheWarmingModeChange: (mode: CacheWarmingMode) => void;
@@ -513,6 +517,14 @@ export class SettingsSelectorComponent extends Container {
 				values: ["sse", "websocket", "websocket-cached", "auto"],
 			},
 			{
+				id: "fast-mode",
+				label: "Fast mode",
+				description:
+					"OpenAI/Codex service tier: fast ~2x cost, ultrafast 6x cost (openai gpt-6-astra, gpt-6.1-sol; others use fast)",
+				currentValue: config.fastMode,
+				values: [...FAST_MODES],
+			},
+			{
 				id: "share-destination",
 				label: "Session share destination",
 				description:
@@ -910,6 +922,9 @@ export class SettingsSelectorComponent extends Container {
 						break;
 					case "transport":
 						callbacks.onTransportChange(newValue as Transport);
+						break;
+					case "fast-mode":
+						callbacks.onFastModeChange(newValue as FastModeSetting);
 						break;
 					case "share-destination":
 						callbacks.onSessionShareDestinationChange(newValue as SessionShareDestination);

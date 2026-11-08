@@ -37,12 +37,12 @@ describe("createAgentSession stream options", () => {
 		}
 	});
 
-	function createModel(api: Api): Model<Api> {
+	function createModel(api: Api, provider = "capture-provider"): Model<Api> {
 		return {
 			id: "capture-model",
 			name: "Capture Model",
 			api,
-			provider: "capture-provider",
+			provider,
 			baseUrl: "https://capture.invalid/v1",
 			reasoning: false,
 			input: ["text"],
@@ -85,8 +85,9 @@ describe("createAgentSession stream options", () => {
 		requestOptions: SimpleStreamOptions = {},
 		extensionFactory?: ExtensionFactory,
 		providerEvent?: unknown,
+		provider?: string,
 	): Promise<SimpleStreamOptions | undefined> {
-		const model = createModel(api);
+		const model = createModel(api, provider);
 		const settingsManager = SettingsManager.inMemory(settings);
 		const resourceLoader = new DefaultResourceLoader({
 			cwd,
@@ -267,6 +268,20 @@ describe("createAgentSession stream options", () => {
 		expect(options?.maxRetries).toBe(2);
 		expect(options?.maxRetryDelayMs).toBe(3000);
 	});
+
+	it.each([
+		["openai", "openai-responses", "fast", "priority"],
+		["openai", "openai-responses", "ultrafast", "priority"], // gpt-6 ultrafast is model-specific; this id is not eligible
+		["openai", "openai-responses", "off", undefined],
+		["capture-provider", "openai-completions", "fast", undefined],
+	] as const)(
+		"sends the fastMode service tier for %s (%s) with fastMode %s",
+		async (provider, api, fastMode, expected) => {
+			const options = await captureStreamOptions(api, { fastMode }, {}, undefined, undefined, provider);
+
+			expect(options?.serviceTier).toBe(expected);
+		},
+	);
 
 	// Regression test for #9784.
 	it("forwards provider stream events to extensions", async () => {
