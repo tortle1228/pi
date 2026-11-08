@@ -41,6 +41,11 @@
         "defaultThinkingLevel": {
           "$ref": "#/$defs/ModelThinkingLevel"
         },
+        "separateModel": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use defaultProvider/defaultModel and a separate model selection in Plan mode. When false (default), Plan and Build share the current model, so switching modes keeps the prompt cache. The thinking level is per mode either way."
+        },
         "bashApproval": {
           "anyOf": [
             {
@@ -63,8 +68,7 @@
         "^.*$": {
           "type": "object",
           "required": [
-            "build",
-            "plan"
+            "build"
           ],
           "properties": {
             "build": {
@@ -396,12 +400,12 @@
     },
     "collapseChangelog": {
       "type": "boolean",
-      "description": "Show the condensed changelog after update; use /changelog for the full changelog.",
+      "description": "Show condensed extension package changelogs after update.",
       "default": false
     },
     "enableInstallTelemetry": {
       "type": "boolean",
-      "description": "Send an anonymous version and update ping after changelog-detected updates.",
+      "description": "Send an anonymous version and update ping after version changes.",
       "default": true
     },
     "enableAnalytics": {

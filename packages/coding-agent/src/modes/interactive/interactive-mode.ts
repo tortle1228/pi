@@ -5572,7 +5572,10 @@ export class InteractiveMode {
 					this.footer.invalidate();
 					this.updateEditorBorderColor();
 					done();
-					const defaultLabel = this.session.getMode() === "plan" ? "Plan default" : "Default";
+					const defaultLabel =
+						this.session.getMode() === "plan" && this.session.usesSeparatePlanModel()
+							? "Plan default"
+							: "Default";
 					this.showStatus(persist ? `${defaultLabel} model: ${model.provider}/${model.id}` : `Model: ${model.id}`);
 					void this.maybeWarnAboutAnthropicSubscriptionAuth(model);
 				} catch (error) {

@@ -227,6 +227,13 @@ const PlanModeSettingsSchema = Type.Object(
 		defaultProvider: Type.Optional(Type.String()),
 		defaultModel: Type.Optional(Type.String()),
 		defaultThinkingLevel: Type.Optional(ModelThinkingLevelSchema),
+		separateModel: Type.Optional(
+			Type.Boolean({
+				default: false,
+				description:
+					"Use defaultProvider/defaultModel and a separate model selection in Plan mode. When false (default), Plan and Build share the current model, so switching modes keeps the prompt cache. The thinking level is per mode either way.",
+			}),
+		),
 		bashApproval: Type.Optional(
 			Type.Union([Type.Literal("ask"), Type.Literal("allow")], {
 				description:
@@ -243,7 +250,8 @@ const ModeProfileSchema = Type.Object({
 	thinkingLevel: ModelThinkingLevelSchema,
 });
 
-const ProfileSchema = Type.Object({ build: ModeProfileSchema, plan: ModeProfileSchema });
+// A profile without `plan` selects one model for both modes.
+const ProfileSchema = Type.Object({ build: ModeProfileSchema, plan: Type.Optional(ModeProfileSchema) });
 
 export const SettingsSchema = Type.Object(
 	{
@@ -534,6 +542,7 @@ type SettingsInput = Static<typeof SettingsSchema>;
 
 export interface CompactionModelOverride extends Static<typeof CompactionModelOverrideSchema> {}
 export type Profile = Static<typeof ProfileSchema>;
+export type ModeProfile = Static<typeof ModeProfileSchema>;
 export interface PlanModeSettings extends Static<typeof PlanModeSettingsSchema> {}
 export interface CompactionSettings extends Static<typeof CompactionSettingsSchema> {}
 export interface BranchSummarySettings extends Static<typeof BranchSummarySettingsSchema> {}

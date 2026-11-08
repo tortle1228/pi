@@ -137,6 +137,7 @@ import {
 	applyToolModifiers,
 	type CacheWarmingMode,
 	DEFAULT_TOOL_NAMES,
+	type ModeProfile,
 	type Profile,
 	type SettingsManager,
 } from "./settings-manager.ts";
@@ -2641,7 +2642,7 @@ export class AgentSession {
 	}
 
 	private _persistDefaultModel(model: Model<any>): void {
-		if (this._mode === "plan") {
+		if (this._mode === "plan" && this.usesSeparatePlanModel()) {
 			this.settingsManager.setPlanDefaultModelAndProvider(model.provider, model.id);
 		} else {
 			this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
@@ -2764,7 +2765,15 @@ export class AgentSession {
 		await this._applyMode(previousMode);
 	}
 
-	/** The defaults of a mode (the current one by default). Plan mode follows the build defaults for values it does not set. */
+	/** Whether Plan mode has its own model. Otherwise both modes share the current model, which keeps the prompt cache across switches. */
+	usesSeparatePlanModel(): boolean {
+		return this.settingsManager.getPlanDefaults().separateModel === true;
+	}
+
+	/**
+	 * The defaults of a mode (the current one by default). Plan mode follows the build defaults for values it does not
+	 * set, and for the model unless it uses a separate model.
+	 */
 	getModeDefaults(mode: AgentMode = this._mode): {
 		provider?: string;
 		modelId?: string;
@@ -2777,15 +2786,31 @@ export class AgentSession {
 		};
 		if (mode === "build") return build;
 		const plan = this.settingsManager.getPlanDefaults();
+		const separate = plan.separateModel === true;
 		return {
-			provider: plan.defaultProvider ?? build.provider,
-			modelId: plan.defaultModel ?? build.modelId,
+			provider: (separate ? plan.defaultProvider : undefined) ?? build.provider,
+			modelId: (separate ? plan.defaultModel : undefined) ?? build.modelId,
 			thinkingLevel: plan.defaultThinkingLevel ?? build.thinkingLevel,
 		};
 	}
 
-	/** The model and thinking level of both modes: the live state for the current mode, the branch or defaults for the other. */
+	/**
+	 * The model and thinking level of both modes: the live state for the current mode, the branch or defaults for the
+	 * other. With a shared model, only the model and Build thinking level, which loads back as a shared-model profile.
+	 */
 	getProfileSnapshot(): Profile {
+		if (!this.usesSeparatePlanModel()) {
+			if (!this.model) throw new Error("No model selected");
+			const thinkingLevel =
+				this._mode === "build"
+					? this.thinkingLevel
+					: ((getModeSelection(this.sessionManager.getBranch(), "build").thinkingLevel as
+							| ThinkingLevel
+							| undefined) ??
+						this.getModeDefaults("build").thinkingLevel ??
+						this.thinkingLevel);
+			return { build: { provider: this.model.provider, model: this.model.id, thinkingLevel } };
+		}
 		const forMode = (mode: AgentMode) => {
 			if (mode === this._mode) {
 				if (!this.model) throw new Error("No model selected");
@@ -2807,29 +2832,39 @@ export class AgentSession {
 		return { build: forMode("build"), plan: forMode("plan") };
 	}
 
-	/** Saves both modes' selections as the defaults and applies them to this session. Changes nothing if a model is unusable. */
+	/**
+	 * Saves the profile's selections as the defaults and applies them to this session. A profile without `plan` turns
+	 * on the shared model. Changes nothing if a model is unusable.
+	 */
 	async applyProfile(profile: Profile): Promise<void> {
+		const plan = profile.plan;
+		if (!plan) {
+			await this._applySharedModelProfile(profile.build);
+			return;
+		}
 		const models = {
 			build: this._modelRuntime.getModel(profile.build.provider, profile.build.model),
-			plan: this._modelRuntime.getModel(profile.plan.provider, profile.plan.model),
+			plan: this._modelRuntime.getModel(plan.provider, plan.model),
 		};
+		const selections = { build: profile.build, plan };
 		for (const mode of ["build", "plan"] as const) {
-			const { provider, model } = profile[mode];
+			const { provider, model } = selections[mode];
 			if (!models[mode]) throw new Error(`Unknown model ${provider}/${model}`);
 			if (!(await this._modelRuntime.checkAuth(provider))) throw new Error(`No API key for ${provider}/${model}`);
 		}
 
 		this.settingsManager.setDefaultModelAndProvider(profile.build.provider, profile.build.model);
 		this.settingsManager.setDefaultThinkingLevel(profile.build.thinkingLevel);
-		this.settingsManager.setPlanDefaultModelAndProvider(profile.plan.provider, profile.plan.model);
-		this.settingsManager.setPlanDefaultThinkingLevel(profile.plan.thinkingLevel);
+		this.settingsManager.setPlanDefaultModelAndProvider(plan.provider, plan.model);
+		this.settingsManager.setPlanDefaultThinkingLevel(plan.thinkingLevel);
+		this.settingsManager.setPlanSeparateModel(true);
 
 		// Record the other mode's selection on the branch, or switching to it would restore an older one.
 		const current = this._mode;
 		const other: AgentMode = current === "build" ? "plan" : "build";
 		this.sessionManager.appendModeChange(other);
-		this.sessionManager.appendModelChange(profile[other].provider, profile[other].model);
-		this.sessionManager.appendThinkingLevelChange(profile[other].thinkingLevel);
+		this.sessionManager.appendModelChange(selections[other].provider, selections[other].model);
+		this.sessionManager.appendThinkingLevelChange(selections[other].thinkingLevel);
 		this.sessionManager.appendModeChange(current);
 
 		const model = models[current]!;
@@ -2839,7 +2874,38 @@ export class AgentSession {
 			this.agent.state.model = model;
 			this.sessionManager.appendModelChange(model.provider, model.id);
 		}
-		this.setThinkingLevel(profile[current].thinkingLevel);
+		this.setThinkingLevel(selections[current].thinkingLevel);
+		if (changed) await this._emitModelSelect(model, previousModel, "set");
+	}
+
+	/** Applies one model to both modes. The Plan model defaults stay, for a later separate-model profile. */
+	private async _applySharedModelProfile(build: ModeProfile): Promise<void> {
+		const model = this._modelRuntime.getModel(build.provider, build.model);
+		if (!model) throw new Error(`Unknown model ${build.provider}/${build.model}`);
+		if (!(await this._modelRuntime.checkAuth(build.provider))) {
+			throw new Error(`No API key for ${build.provider}/${build.model}`);
+		}
+
+		this.settingsManager.setDefaultModelAndProvider(build.provider, build.model);
+		this.settingsManager.setDefaultThinkingLevel(build.thinkingLevel);
+		this.settingsManager.setPlanSeparateModel(false);
+
+		const previousModel = this.model;
+		const changed = !modelsAreEqual(previousModel, model);
+		if (changed) {
+			this.agent.state.model = model;
+			this.sessionManager.appendModelChange(model.provider, model.id);
+		}
+		if (this._mode === "build") {
+			this.setThinkingLevel(build.thinkingLevel);
+		} else {
+			// Record Build's level on the branch, or switching back would restore an older one.
+			this.sessionManager.appendModeChange("build");
+			this.sessionManager.appendThinkingLevelChange(build.thinkingLevel);
+			this.sessionManager.appendModeChange("plan");
+			// Clamp Plan's level to the new model.
+			this.setThinkingLevel(this.thinkingLevel);
+		}
 		if (changed) await this._emitModelSelect(model, previousModel, "set");
 	}
 
@@ -2857,6 +2923,15 @@ export class AgentSession {
 
 	private async _applyMode(previousMode: AgentMode): Promise<void> {
 		const selection = getModeSelection(this.sessionManager.getBranch(), this._mode);
+		if (!this.usesSeparatePlanModel()) {
+			// A shared model stays, so the switch keeps the prompt cache. Only the thinking level is per mode.
+			this.setThinkingLevel(
+				(selection.thinkingLevel as ThinkingLevel | undefined) ?? this._getThinkingLevelForModelSwitch(this.model),
+			);
+			await this._extensionRunner.emit({ type: "mode_select", mode: this._mode, previousMode });
+			this._emit({ type: "mode_changed", mode: this._mode });
+			return;
+		}
 		const defaults = this.getModeDefaults();
 		const candidates = [
 			selection.model,

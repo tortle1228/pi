@@ -1,5 +1,4 @@
 // Plan mode behavior: tool restrictions, the Plan Mode instructions, and the menu after a proposed plan.
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AgentMode } from "../../core/agent-mode.ts";
 import { type ExtensionAPI, type ExtensionContext, isToolCallEventType } from "../../core/extensions/types.ts";
 import type { SessionEntry } from "../../core/session-manager.ts";
@@ -21,7 +20,6 @@ const INSPECTION_TOOLS = new Set([
 	"x_search",
 	"tool_search",
 ]);
-const ALWAYS_ACTIVE_IN_PLAN = ["read", "bash", "grep", "find", "ls", "request_user_input"];
 const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "todo", "tasks"]);
 const ALLOW = "Allow";
 
@@ -29,7 +27,6 @@ const TOOLS_ENTRY = "plan-mode-tools";
 // Entries of the retired pi-extensions plan-mode package, read so its sessions get their tools back.
 const LEGACY_ENTRY = "plan-mode";
 const MODE_NOTICE = "plan-mode-notice";
-const PLAN_CONTEXT = "plan-mode-context";
 const FRESH_IMPLEMENT_ARG = "__implement-fresh";
 
 const NOTICES: Record<AgentMode, string> = {
@@ -46,14 +43,19 @@ function lastAssistantText(branch: readonly SessionEntry[]): string | undefined 
 	return undefined;
 }
 
-function lastNotifiedMode(branch: readonly SessionEntry[]): string {
-	for (let i = branch.length - 1; i >= 0; i--) {
-		const entry = branch[i];
-		if (entry.type === "custom_message" && entry.customType === MODE_NOTICE) {
-			return (entry.details as { mode: string }).mode;
-		}
+interface NoticeDetails {
+	mode: string;
+	/** The bash approval the Plan instructions describe. Build notices have none. */
+	bashApproval?: string;
+}
+
+/** What the model was last told, from the entries it still sees, so a notice compaction removed is sent again. */
+function lastNotice(contextEntries: readonly SessionEntry[]): NoticeDetails {
+	for (let i = contextEntries.length - 1; i >= 0; i--) {
+		const entry = contextEntries[i];
+		if (entry.type === "custom_message" && entry.customType === MODE_NOTICE) return entry.details as NoticeDetails;
 	}
-	return "build";
+	return { mode: "build" };
 }
 
 /** Tools changed for Plan mode, so leaving it can undo exactly that. */
@@ -108,30 +110,13 @@ export default function planMode(pi: ExtensionAPI): void {
 		pi.appendEntry(TOOLS_ENTRY, toolChanges);
 	}
 
-	/** Whether tool_search can activate this tool, which also means it can do so again. */
-	function isSearchable(name: string): boolean {
-		const exposure = pi.getAllTools().find((tool) => tool.name === name)?.exposure;
-		return exposure === "deferred" || exposure === "codemode";
-	}
-
-	function syncTools(duringRun = false): void {
-		const active = pi.getActiveTools();
+	// Plan mode keeps the declared tool list unchanged, because a changed list invalidates the prompt cache.
+	// The tool_call handler blocks what Plan mode forbids. This only restores tools that an older Plan mode suppressed.
+	function syncTools(): void {
 		const { suppressed, added } = toolChanges;
-		if (pi.getMode() === "plan") {
-			const required = [...ALWAYS_ACTIVE_IN_PLAN, ...extraReadOnlyTools().filter(allowed)];
-			// A blocked tool that tool_search loaded during a run was not active before Plan mode, so leaving must not activate it.
-			const newlyBlocked = active.filter(
-				(name) => !allowed(name) && !suppressed.includes(name) && !(duringRun && isSearchable(name)),
-			);
-			const newlyAdded = required.filter((name) => !active.includes(name) && !added.includes(name));
-			if (newlyBlocked.length > 0 || newlyAdded.length > 0) {
-				saveToolChanges({ suppressed: [...suppressed, ...newlyBlocked], added: [...added, ...newlyAdded] });
-			}
-			pi.setActiveTools([...new Set([...active.filter(allowed), ...required])]);
-		} else if (suppressed.length > 0 || added.length > 0) {
-			pi.setActiveTools([...new Set([...active.filter((name) => !added.includes(name)), ...suppressed])]);
-			saveToolChanges({ suppressed: [], added: [] });
-		}
+		if (pi.getMode() === "plan" || (suppressed.length === 0 && added.length === 0)) return;
+		pi.setActiveTools([...new Set([...pi.getActiveTools().filter((name) => !added.includes(name)), ...suppressed])]);
+		saveToolChanges({ suppressed: [], added: [] });
 	}
 
 	function load(ctx: ExtensionContext): void {
@@ -216,22 +201,15 @@ export default function planMode(pi: ExtensionAPI): void {
 	pi.on("before_agent_start", async (_event, ctx) => {
 		bashApproval = pi.getSettings().plan?.bashApproval ?? "ask";
 		const mode = pi.getMode();
-		if (mode === lastNotifiedMode(ctx.sessionManager.getBranch())) return;
-		return { message: { customType: MODE_NOTICE, content: NOTICES[mode], display: false, details: { mode } } };
-	});
-
-	// Not persisted: the instructions apply to every request in Plan mode and vanish once it ends.
-	pi.on("context", async (event) => {
-		syncTools(true);
-		if (pi.getMode() !== "plan") return;
-		const message: AgentMessage = {
-			role: "custom",
-			customType: PLAN_CONTEXT,
-			content: `${PLAN_MODE_INSTRUCTIONS}\n\n${bashApproval === "allow" ? PLAN_MODE_BASH_NOTES_UNRESTRICTED : PLAN_MODE_BASH_NOTES}`,
-			display: false,
-			timestamp: Date.now(),
-		};
-		return { messages: [...event.messages, message] };
+		const details: NoticeDetails = mode === "plan" ? { mode, bashApproval } : { mode };
+		const last = lastNotice(ctx.sessionManager.buildContextEntries());
+		if (last.mode === details.mode && last.bashApproval === details.bashApproval) return;
+		// The instructions ride in the stored notice, not in a per-request message, so the cached prefix stays stable.
+		const content =
+			mode === "plan"
+				? `${NOTICES.plan}\n\n${PLAN_MODE_INSTRUCTIONS}\n\n${bashApproval === "allow" ? PLAN_MODE_BASH_NOTES_UNRESTRICTED : PLAN_MODE_BASH_NOTES}`
+				: NOTICES[mode];
+		return { message: { customType: MODE_NOTICE, content, display: false, details } };
 	});
 
 	pi.on("agent_settled", async (event, ctx) => {

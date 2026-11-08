@@ -16,7 +16,19 @@ describe("AgentSession Plan and Build modes", () => {
 		while (harnesses.length > 0) harnesses.pop()?.cleanup();
 	});
 
+	/** The tests below this helper cover a separate Plan model; `createShared` covers the default shared model. */
 	async function create(options: Parameters<typeof createHarness>[0] = {}): Promise<Harness> {
+		const { plan, ...settings } = options.settings ?? {};
+		const harness = await createHarness({
+			models: MODELS,
+			...options,
+			settings: { ...settings, plan: { separateModel: true, ...plan } },
+		});
+		harnesses.push(harness);
+		return harness;
+	}
+
+	async function createShared(options: Parameters<typeof createHarness>[0] = {}): Promise<Harness> {
 		const harness = await createHarness({ models: MODELS, ...options });
 		harnesses.push(harness);
 		return harness;
@@ -59,7 +71,7 @@ describe("AgentSession Plan and Build modes", () => {
 		await harness.session.setMode("plan");
 		expect(harness.session.model?.id).toBe("plan-model");
 		expect(harness.session.thinkingLevel).toBe("high");
-		expect(harness.settingsManager.getPlanDefaults()).toEqual({});
+		expect(harness.settingsManager.getPlanDefaults()).toEqual({ separateModel: true });
 	});
 
 	it("saves Ctrl+S selections to the current mode's defaults only", async () => {
@@ -73,6 +85,7 @@ describe("AgentSession Plan and Build modes", () => {
 		harness.session.setThinkingLevel("high", { persist: true });
 
 		expect(harness.settingsManager.getPlanDefaults()).toEqual({
+			separateModel: true,
 			defaultProvider: planModel.provider,
 			defaultModel: "plan-model",
 			defaultThinkingLevel: "high",
@@ -254,14 +267,14 @@ describe("AgentSession Plan and Build modes", () => {
 				}),
 			).rejects.toThrow("Unknown model");
 			expect(harness.session.model?.id).toBe("build-model");
-			expect(harness.settingsManager.getPlanDefaults()).toEqual({});
+			expect(harness.settingsManager.getPlanDefaults()).toEqual({ separateModel: true });
 		});
 
 		it("uses the current thinking level for a mode never visited when no default is set", async () => {
 			const harness = await create();
 			harness.session.setThinkingLevel("medium");
 
-			expect(harness.session.getProfileSnapshot().plan.thinkingLevel).toBe("medium");
+			expect(harness.session.getProfileSnapshot().plan?.thinkingLevel).toBe("medium");
 		});
 
 		it("records one thinking change for the current mode and keeps the profile after tree navigation", async () => {
@@ -300,6 +313,94 @@ describe("AgentSession Plan and Build modes", () => {
 			harness.settingsManager.deleteProfile("a");
 
 			expect(Object.keys(harness.settingsManager.getProfiles())).toEqual(["b"]);
+		});
+	});
+
+	describe("shared model (default)", () => {
+		it("keeps the model across switches and ignores Plan model defaults", async () => {
+			const harness = await createShared({
+				settings: { plan: { defaultProvider: "faux", defaultModel: "plan-model", defaultThinkingLevel: "high" } },
+			});
+			harness.session.setThinkingLevel("low");
+
+			await harness.session.setMode("plan");
+			expect(harness.session.model?.id).toBe("build-model");
+			expect(harness.session.thinkingLevel).toBe("high");
+
+			await harness.session.setMode("build");
+			expect(harness.session.model?.id).toBe("build-model");
+			expect(harness.session.thinkingLevel).toBe("low");
+		});
+
+		it("carries a model chosen in plan mode into build mode", async () => {
+			const harness = await createShared();
+			await harness.session.setMode("plan");
+			await harness.session.setModel(harness.getModel("plan-model")!);
+
+			await harness.session.setMode("build");
+
+			expect(harness.session.model?.id).toBe("plan-model");
+		});
+
+		it("saves a Ctrl+S model chosen in plan mode as the build default", async () => {
+			const harness = await createShared();
+			await harness.session.setMode("plan");
+
+			await harness.session.setModel(harness.getModel("plan-model")!, { persist: true });
+
+			expect(harness.settingsManager.getDefaultModel()).toBe("plan-model");
+			expect(harness.settingsManager.getPlanDefaults().defaultModel).toBeUndefined();
+		});
+
+		it("snapshots a profile without plan, with the build thinking level", async () => {
+			const harness = await createShared();
+			harness.session.setThinkingLevel("low");
+			await harness.session.setMode("plan");
+			harness.session.setThinkingLevel("high");
+
+			expect(harness.session.getProfileSnapshot()).toEqual({
+				build: { provider: "faux", model: "build-model", thinkingLevel: "low" },
+			});
+		});
+
+		it("switches to a shared model when loading a profile without plan, keeping the Plan defaults", async () => {
+			const harness = await create({ settings: { plan: { defaultProvider: "faux", defaultModel: "plan-model" } } });
+			await harness.session.setMode("plan");
+			expect(harness.session.model?.id).toBe("plan-model");
+
+			await harness.session.applyProfile({ build: { provider: "faux", model: "flat-model", thinkingLevel: "off" } });
+
+			expect(harness.session.model?.id).toBe("flat-model");
+			expect(harness.settingsManager.getPlanDefaults()).toMatchObject({
+				separateModel: false,
+				defaultModel: "plan-model",
+			});
+			await harness.session.setMode("build");
+			expect(harness.session.model?.id).toBe("flat-model");
+			expect(harness.session.thinkingLevel).toBe("off");
+		});
+
+		it("clamps the Plan thinking level when loading a shared profile in plan mode", async () => {
+			const harness = await createShared();
+			await harness.session.setMode("plan");
+			harness.session.setThinkingLevel("high");
+
+			await harness.session.applyProfile({ build: { provider: "faux", model: "flat-model", thinkingLevel: "off" } });
+
+			expect(harness.session.thinkingLevel).toBe("off");
+		});
+
+		it("switches to separate models when loading a profile with plan", async () => {
+			const harness = await createShared();
+
+			await harness.session.applyProfile({
+				build: { provider: "faux", model: "build-model", thinkingLevel: "low" },
+				plan: { provider: "faux", model: "plan-model", thinkingLevel: "high" },
+			});
+			await harness.session.setMode("plan");
+
+			expect(harness.settingsManager.getPlanDefaults().separateModel).toBe(true);
+			expect(harness.session.model?.id).toBe("plan-model");
 		});
 	});
 });

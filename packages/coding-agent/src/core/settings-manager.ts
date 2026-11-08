@@ -42,6 +42,7 @@ export type {
 	ImageSettings,
 	MarkdownSettings,
 	MermaidRenderingMode,
+	ModeProfile,
 	PackageSource,
 	PlanModeSettings,
 	Profile,
@@ -756,6 +757,12 @@ export class SettingsManager {
 		const { [name]: _removed, ...rest } = this.globalSettings.profiles ?? {};
 		this.globalSettings.profiles = rest;
 		this.markModified("profiles", name);
+		this.save();
+	}
+
+	setPlanSeparateModel(separate: boolean): void {
+		this.globalSettings.plan = { ...this.globalSettings.plan, separateModel: separate };
+		this.markModified("plan", "separateModel");
 		this.save();
 	}
 

@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import planModeExtension from "../../src/extensions/plan-mode/index.ts";
 import type { PlanMenuChoice } from "../../src/extensions/plan-mode/plan-menu.ts";
 import requestUserInputExtension from "../../src/extensions/request-user-input/index.ts";
-import { createToolSearchExtension } from "../../src/extensions/tool-search/index.ts";
 import { createHarness, createTestUiContext, getToolResult, type Harness } from "./harness.ts";
 
 const PLAN_RESPONSE = "Here it is.\n\n<proposed_plan>\n# Plan\n</proposed_plan>";
@@ -36,16 +35,16 @@ describe("built-in plan-mode extension", () => {
 		return harness;
 	}
 
-	it("removes mutating tools in plan mode and restores them in build mode", async () => {
+	// Changing the declared tools invalidates the provider's prompt cache, so Plan mode must leave them alone.
+	it("keeps the declared tools unchanged across mode switches", async () => {
 		const harness = await create();
-		expect(harness.session.getActiveToolNames()).toContain("write");
+		const before = harness.session.getActiveToolNames();
 
 		await harness.session.setMode("plan");
-		expect(harness.session.getActiveToolNames()).not.toContain("write");
-		expect(harness.session.getActiveToolNames()).toContain("read");
+		expect(harness.session.getActiveToolNames()).toEqual(before);
 
 		await harness.session.setMode("build");
-		expect(harness.session.getActiveToolNames()).toContain("write");
+		expect(harness.session.getActiveToolNames()).toEqual(before);
 	});
 
 	it("blocks a mutating tool the model still calls in plan mode", async () => {
@@ -162,78 +161,41 @@ describe("built-in plan-mode extension", () => {
 		});
 	});
 
-	it("keeps tools that declare readOnlyHint and tool_search, and removes other tools", async () => {
+	it("runs only tools that declare readOnlyHint and blocks the rest in plan mode", async () => {
+		const executes = Object.fromEntries(["docs", "reader", "deploy", "other"].map((name) => [name, vi.fn()]));
 		const harness = await createHarness({
 			extensionFactories: [
 				planModeExtension,
 				(pi) => {
-					pi.registerTool({ ...tool("docs"), annotations: { readOnlyHint: true } });
-					pi.registerTool({ ...tool("reader"), annotations: { readOnlyHint: true }, reachesTools: () => "all" });
-					pi.registerTool({ ...tool("deploy"), annotations: { readOnlyHint: false } });
-					pi.registerTool(tool("other"));
-					pi.registerTool(tool("tool_search"));
+					pi.registerTool({ ...tool("docs", executes.docs), annotations: { readOnlyHint: true } });
+					pi.registerTool({
+						...tool("reader", executes.reader),
+						annotations: { readOnlyHint: true },
+						reachesTools: () => "all",
+					});
+					pi.registerTool({ ...tool("deploy", executes.deploy), annotations: { readOnlyHint: false } });
+					pi.registerTool(tool("other", executes.other));
 				},
 			],
 		});
 		harnesses.push(harness);
-
 		await harness.session.setMode("plan");
 
-		const active = harness.session.getActiveToolNames();
-		expect(active).toEqual(expect.arrayContaining(["docs", "tool_search", "read"]));
-		expect(active).not.toContain("reader");
-		expect(active).not.toContain("deploy");
-		expect(active).not.toContain("other");
+		for (const name of Object.keys(executes)) {
+			harness.setResponses([
+				fauxAssistantMessage([fauxToolCall(name, {})], { stopReason: "toolUse" }),
+				fauxAssistantMessage("done"),
+			]);
+			await harness.session.prompt(`call ${name}`);
+		}
+
+		expect(executes.docs).toHaveBeenCalledTimes(1);
+		expect(executes.reader).not.toHaveBeenCalled();
+		expect(executes.deploy).not.toHaveBeenCalled();
+		expect(executes.other).not.toHaveBeenCalled();
 	});
 
-	it("does not activate a blocked tool in build mode only because tool_search loaded it in plan mode", async () => {
-		const harness = await createHarness({
-			extensionFactories: [
-				planModeExtension,
-				createToolSearchExtension(),
-				(pi) => {
-					pi.registerTool({ ...tool("deploy"), exposure: "deferred" });
-					pi.registerTool({ ...tool("docs_lookup"), exposure: "deferred", annotations: { readOnlyHint: true } });
-				},
-			],
-		});
-		harnesses.push(harness);
-		harness.session.setActiveToolsByName([...harness.session.getActiveToolNames(), "tool_search"]);
-		await harness.session.setMode("plan");
-		const seen: string[][] = [];
-		harness.setResponses([
-			fauxAssistantMessage([fauxToolCall("tool_search", { query: "deploy docs_lookup" })], {
-				stopReason: "toolUse",
-			}),
-			() => {
-				seen.push(harness.session.getActiveToolNames());
-				return fauxAssistantMessage("done");
-			},
-		]);
-
-		await harness.session.prompt("find tools");
-
-		expect(seen[0]).toContain("docs_lookup");
-		expect(seen[0]).not.toContain("deploy");
-		await harness.session.setMode("build");
-		expect(harness.session.getActiveToolNames()).not.toContain("deploy");
-	});
-
-	it("restores a searchable tool that was active before plan mode", async () => {
-		const harness = await createHarness({
-			extensionFactories: [planModeExtension, (pi) => pi.registerTool({ ...tool("deploy"), exposure: "deferred" })],
-		});
-		harnesses.push(harness);
-		harness.session.setActiveToolsByName([...harness.session.getActiveToolNames(), "deploy"]);
-
-		await harness.session.setMode("plan");
-		expect(harness.session.getActiveToolNames()).not.toContain("deploy");
-
-		await harness.session.setMode("build");
-		expect(harness.session.getActiveToolNames()).toContain("deploy");
-	});
-
-	it("sends the instructions on plan requests only and notes each mode change once", async () => {
+	it("stores the instructions in the plan notice once and keeps every earlier request a prefix of the next", async () => {
 		const harness = await create();
 		const seen: string[][] = [];
 		const record = (context: { messages: { role: string; content: unknown }[] }) => {
@@ -249,11 +211,66 @@ describe("built-in plan-mode extension", () => {
 		await harness.session.prompt("third");
 
 		const count = (messages: string[], text: string) => messages.filter((message) => message.includes(text)).length;
-		expect(count(seen[0], "Plan Mode (Conversational)")).toBe(1);
-		expect(count(seen[1], "Plan Mode (Conversational)")).toBe(1);
-		expect(count(seen[2], "Plan Mode (Conversational)")).toBe(0);
+		for (const messages of seen) expect(count(messages, "Plan Mode (Conversational)")).toBe(1);
 		expect(count(seen[1], "Plan mode is now active")).toBe(1);
 		expect(count(seen[2], "Plan mode has ended")).toBe(1);
+		// The provider caches by prefix, so a request may only append to the previous one.
+		expect(seen[1].slice(0, seen[0].length)).toEqual(seen[0]);
+		expect(seen[2].slice(0, seen[1].length)).toEqual(seen[1]);
+	});
+
+	it("sends the instructions again after compaction removed them", async () => {
+		const harness = await createHarness({
+			tools: [tool("write"), tool("read"), tool("bash")],
+			settings: { compaction: { keepRecentTokens: 1 } },
+			extensionFactories: [
+				planModeExtension,
+				(pi) =>
+					pi.on("session_before_compact", async (event) => ({
+						compaction: {
+							summary: "summary",
+							firstKeptEntryId: event.preparation.firstKeptEntryId,
+							tokensBefore: event.preparation.tokensBefore,
+						},
+					})),
+			],
+		});
+		harnesses.push(harness);
+		const seen: string[][] = [];
+		const record = (context: { messages: { role: string; content: unknown }[] }) => {
+			seen.push(context.messages.map((message) => JSON.stringify(message.content)));
+			return fauxAssistantMessage("ok");
+		};
+		harness.setResponses([record, record, record]);
+
+		await harness.session.setMode("plan");
+		await harness.session.prompt("first");
+		await harness.session.prompt("second");
+		await harness.session.compact();
+		await harness.session.prompt("third");
+
+		const count = (messages: string[], text: string) => messages.filter((message) => message.includes(text)).length;
+		expect(count(seen[2], "Plan Mode (Conversational)")).toBe(1);
+	});
+
+	it("sends the instructions again when the bash approval they describe changes", async () => {
+		const harness = await create();
+		const seen: string[][] = [];
+		const record = (context: { messages: { role: string; content: unknown }[] }) => {
+			seen.push(context.messages.map((message) => JSON.stringify(message.content)));
+			return fauxAssistantMessage("ok");
+		};
+		harness.setResponses([record, record, record]);
+
+		await harness.session.setMode("plan");
+		await harness.session.prompt("first");
+		await harness.session.prompt("second");
+		harness.settingsManager.applyOverrides({ plan: { bashApproval: "allow" } });
+		await harness.session.prompt("third");
+
+		const count = (messages: string[], text: string) => messages.filter((message) => message.includes(text)).length;
+		expect(count(seen[1], "Plan Mode (Conversational)")).toBe(1);
+		expect(count(seen[2], "Plan Mode (Conversational)")).toBe(2);
 	});
 
 	it("nets out mode toggles that leave the model's mode unchanged", async () => {
@@ -268,22 +285,6 @@ describe("built-in plan-mode extension", () => {
 			.getEntries()
 			.filter((entry) => entry.type === "custom_message" && entry.customType === "plan-mode-notice");
 		expect(notices).toEqual([]);
-	});
-
-	it("deactivates tools only plan mode activated when it ends", async () => {
-		const harness = await createHarness({
-			tools: [tool("write"), tool("read"), tool("bash"), tool("grep")],
-			initialActiveToolNames: ["write", "read", "bash"],
-			extensionFactories: [planModeExtension],
-		});
-		harnesses.push(harness);
-
-		await harness.session.setMode("plan");
-		expect(harness.session.getActiveToolNames()).toContain("grep");
-
-		await harness.session.setMode("build");
-		expect(harness.session.getActiveToolNames()).not.toContain("grep");
-		expect(harness.session.getActiveToolNames()).toContain("write");
 	});
 
 	it("restores tools suppressed by the retired plan-mode package", async () => {
@@ -308,23 +309,6 @@ describe("built-in plan-mode extension", () => {
 
 		await harness.session.prompt("/plan off");
 		expect(harness.session.getMode()).toBe("build");
-	});
-
-	it("restores suppressed tools on the branch after a resume in plan mode", async () => {
-		const first = await create();
-		await first.session.setMode("plan");
-
-		const resumed = await createHarness({
-			tools: [tool("write"), tool("read"), tool("bash")],
-			extensionFactories: [planModeExtension],
-			sessionManager: first.sessionManager,
-		});
-		harnesses.push(resumed);
-		await resumed.session.bindExtensions({});
-
-		expect(resumed.session.getActiveToolNames()).not.toContain("write");
-		await resumed.session.setMode("build");
-		expect(resumed.session.getActiveToolNames()).toContain("write");
 	});
 
 	describe("menu after a proposed plan", () => {
