@@ -7,6 +7,7 @@ import chalk from "chalk";
 import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, ENV_SESSION_DIR } from "../config.ts";
 import type { ExtensionFlag } from "../core/extensions/types.ts";
 import { getToolListError, type TuiMode } from "../core/settings-manager.ts";
+import { WORKTREE_NAME_PATTERN } from "../core/worktree.ts";
 
 export type Mode = "text" | "json" | "rpc";
 
@@ -51,6 +52,8 @@ export interface Args {
 	tuiMode?: TuiMode;
 	verbose?: boolean;
 	projectTrustOverride?: boolean;
+	/** Start in a new worktree; `true` picks a random name. */
+	worktree?: string | true;
 	messages: string[];
 	fileArgs: string[];
 	/** Unknown flags (potentially extension flags) - map of flag name to value */
@@ -244,6 +247,22 @@ export function parseArgs(args: string[]): Args {
 			result.projectTrustOverride = false;
 		} else if (arg === "--offline") {
 			result.offline = true;
+		} else if (arg === "--worktree" || arg === "-w") {
+			// Like Claude Code's -w, a following word that is a valid name is the name, not the prompt.
+			const next = args[i + 1];
+			if (next !== undefined && WORKTREE_NAME_PATTERN.test(next)) {
+				result.worktree = next;
+				i++;
+			} else {
+				result.worktree = true;
+			}
+		} else if (arg.startsWith("--worktree=")) {
+			const name = arg.slice("--worktree=".length);
+			if (WORKTREE_NAME_PATTERN.test(name)) {
+				result.worktree = name;
+			} else {
+				result.diagnostics.push({ type: "error", message: `Invalid worktree name "${name}"` });
+			}
 		} else if (arg.startsWith("@")) {
 			result.fileArgs.push(arg.slice(1)); // Remove @ prefix
 		} else if (arg.startsWith("--")) {
@@ -312,6 +331,7 @@ ${chalk.bold("Options:")}
   --fork <path|id>               Fork a session by file path or full/partial ID into the current directory
   --session-dir <dir>            Directory for session storage and lookup
   --no-session                   Don't save session (ephemeral)
+  --worktree, -w [name]          Start in a new git worktree on branch pi/<name> (random name if omitted)
   --name, -n <name>              Set session display name
   --models <patterns>            Comma-separated model patterns for Ctrl+P cycling
                                  Supports globs (anthropic/*, *sonnet*) and fuzzy matching

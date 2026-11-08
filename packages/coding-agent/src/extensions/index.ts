@@ -8,12 +8,14 @@ import requestUserInputExtension from "./request-user-input/index.ts";
 import tasksExtension from "./tasks/index.ts";
 import toolSearchExtension from "./tool-search/index.ts";
 import webSearchExtension from "./web-search/index.ts";
+import worktreeExtension from "./worktree/index.ts";
 
 export const builtInExtensions: InlineExtension[] = [
 	{ name: "llama.cpp", factory: llamaExtension, builtin: true },
 	{ name: "plan-mode", factory: planModeExtension, builtin: true },
 	{ name: "request-user-input", factory: requestUserInputExtension, builtin: true },
 	{ name: "claude-memory", factory: claudeMemoryExtension, builtin: true },
+	{ name: "worktree", factory: worktreeExtension, builtin: true },
 	// Replaceable: an extension that registers `codemode`, `tool_search`, `web_search`, or `/mcp` (such as a
 	// third-party MCP extension) takes over instead of running alongside the built-in one.
 	{ name: "codemode", factory: codemodeExtension, replaceable: true, builtin: true },

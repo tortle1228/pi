@@ -21,6 +21,7 @@ A ported change that touches one of these needs the feature's tests too (see the
 | `anthropic-api` / `anthropic` provider split, subscription plan limits | `packages/ai/test`, `packages/coding-agent/test` (grep `anthropic-api`) |
 | Antigravity provider | `packages/ai/test` (grep `antigravity`) |
 | Web search/fetch backends: Anthropic, xAI, Parallel, Tavily, Exa, Firecrawl, Antigravity | `packages/coding-agent/test` (grep `web-search`) |
+| Git worktrees: `--worktree`, `/worktree`, `enter_worktree`, cleanup on quit | `packages/coding-agent/test/worktree.test.ts`, `packages/coding-agent/test/worktree-cli.test.ts`, `packages/coding-agent/test/suite/agent-session-worktree.test.ts`, `packages/coding-agent/test/args.test.ts` |
 | Background tasks, shell secret redaction, Claude memory extension | `packages/coding-agent/test` (grep `tasks`, `redact`, `memory`) |
 
 Removed from this fork; never port changes back into them: CHANGELOGs and `/changelog`, upstream contribution files, `durable`, `storage`, `env`, P2, P3, Chord and other apps.

@@ -99,12 +99,15 @@ See [Sessions and Context](sessions.md) for resuming, forking, naming, and stori
   Uses an in-memory session that is not persisted.
 - `-n`, `--name <name>`<br>
   Sets the session display name.
+- `-w`, `--worktree [name]`<br>
+  Starts in a new git worktree on branch `pi/<name>`, cut from the current `HEAD`; the name is random when omitted. A following word is taken as the name when it is a valid name, so put the prompt after another flag or use `--worktree=<name>`. See [Work in a git worktree](usage.md#work-in-a-git-worktree).
 
 Constraints:
 
 - Session IDs must start and end with a letter or number.
 - `--fork` cannot be combined with `--session`, `--continue`, `--resume`, or `--no-session`.
 - `--session-id` cannot be combined with `--session`, `--continue`, or `--resume`. Combine it with `--fork` to choose the new ID.
+- `--worktree` cannot be combined with `--session`, `--session-id`, `--fork`, `--continue`, or `--resume`.
 
 <a id="tool-options"></a>
 

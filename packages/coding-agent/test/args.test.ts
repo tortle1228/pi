@@ -21,6 +21,31 @@ describe("parseArgs", () => {
 		});
 	});
 
+	describe("--worktree flag", () => {
+		test("takes an optional name", () => {
+			expect(parseArgs(["-w"]).worktree).toBe(true);
+			expect(parseArgs(["--worktree", "feat"]).worktree).toBe("feat");
+			expect(parseArgs(["--worktree=feat"]).worktree).toBe("feat");
+		});
+
+		test("does not take a flag, file, or sentence as the name", () => {
+			const withFlag = parseArgs(["-w", "-p", "hi"]);
+			expect(withFlag.worktree).toBe(true);
+			expect(withFlag.print).toBe(true);
+			expect(withFlag.messages).toEqual(["hi"]);
+			const withFile = parseArgs(["-w", "@a.md"]);
+			expect(withFile.worktree).toBe(true);
+			expect(withFile.fileArgs).toEqual(["a.md"]);
+			const withSentence = parseArgs(["-w", "fix the bug"]);
+			expect(withSentence.worktree).toBe(true);
+			expect(withSentence.messages).toEqual(["fix the bug"]);
+		});
+
+		test("rejects an invalid --worktree= name", () => {
+			expect(parseArgs(["--worktree=a b"]).diagnostics[0]?.type).toBe("error");
+		});
+	});
+
 	describe("--help flag", () => {
 		test("parses --help flag", () => {
 			const result = parseArgs(["--help"]);

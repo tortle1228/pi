@@ -61,6 +61,7 @@ import { collectSettingsDiagnostics, deduplicateDiagnostics } from "./core/setti
 import { SettingsManager } from "./core/settings-manager.ts";
 import { printTimings, resetTimings, time } from "./core/timings.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/trust-manager.ts";
+import { createWorktree } from "./core/worktree.ts";
 import { builtInExtensions } from "./extensions/index.ts";
 import { loadMcpCommand } from "./extensions/mcp/cli.lazy.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
@@ -308,6 +309,23 @@ function validateForkFlags(parsed: Args): void {
 
 	if (conflictingFlags.length > 0) {
 		console.error(chalk.red(`Error: --fork cannot be combined with ${conflictingFlags.join(", ")}`));
+		process.exit(1);
+	}
+}
+
+function validateWorktreeFlags(parsed: Args): void {
+	if (parsed.worktree === undefined) return;
+
+	const conflictingFlags = [
+		parsed.session ? "--session" : undefined,
+		parsed.sessionId !== undefined ? "--session-id" : undefined,
+		parsed.fork ? "--fork" : undefined,
+		parsed.continue ? "--continue" : undefined,
+		parsed.resume ? "--resume" : undefined,
+	].filter((flag): flag is string => flag !== undefined);
+
+	if (conflictingFlags.length > 0) {
+		console.error(chalk.red(`Error: --worktree cannot be combined with ${conflictingFlags.join(", ")}`));
 		process.exit(1);
 	}
 }
@@ -675,6 +693,21 @@ export async function main(args: string[], options?: MainOptions) {
 
 	validateForkFlags(parsed);
 	validateSessionIdFlags(parsed);
+	validateWorktreeFlags(parsed);
+
+	// CLI paths are relative to where pi was launched, not to the worktree.
+	const launchCwd = cwd;
+	if (parsed.worktree !== undefined && !parsed.help && parsed.listModels === undefined) {
+		try {
+			const { record, warnings } = await createWorktree(cwd, parsed.worktree === true ? undefined : parsed.worktree);
+			for (const warning of warnings) console.error(chalk.yellow(`Warning: ${warning}`));
+			process.chdir(record.path);
+			cwd = record.path;
+		} catch (error: unknown) {
+			console.error(chalk.red(`Error: --worktree: ${error instanceof Error ? error.message : String(error)}`));
+			process.exit(1);
+		}
+	}
 
 	// Run migrations (pass cwd for project-local migrations)
 	const { migratedAuthProviders: migratedProviders, deprecationWarnings } = runMigrations(cwd);
@@ -737,10 +770,10 @@ export async function main(args: string[], options?: MainOptions) {
 	const trustPromptMode: AppMode = parsed.help || parsed.listModels !== undefined ? "print" : appMode;
 	const projectTrustByCwd = new Map<string, boolean>();
 
-	const resolvedExtensionPaths = resolveCliPaths(cwd, parsed.extensions);
-	const resolvedSkillPaths = resolveCliPaths(cwd, parsed.skills);
-	const resolvedPromptTemplatePaths = resolveCliPaths(cwd, parsed.promptTemplates);
-	const resolvedThemePaths = resolveCliPaths(cwd, parsed.themes);
+	const resolvedExtensionPaths = resolveCliPaths(launchCwd, parsed.extensions);
+	const resolvedSkillPaths = resolveCliPaths(launchCwd, parsed.skills);
+	const resolvedPromptTemplatePaths = resolveCliPaths(launchCwd, parsed.promptTemplates);
+	const resolvedThemePaths = resolveCliPaths(launchCwd, parsed.themes);
 	const createRuntime: CreateAgentSessionRuntimeFactory = async ({
 		cwd,
 		agentDir,

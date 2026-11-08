@@ -66,6 +66,18 @@ Use `/tree`, `/fork`, or `/clone` when you want to explore another approach with
 
 After leaving Pi, run `pi --continue` from the same folder to resume its most recent session.
 
+## Work in a git worktree
+
+A worktree is a second checkout of the same repository, so Pi's edits stay off the branch you are using.
+
+- `pi --worktree [name]` (`-w`) starts in a new worktree.
+- `/worktree [name]` continues the current conversation in a worktree, creating it if missing.
+- The `enter_worktree` tool lets the model do the same when you or the project instructions ask for isolated work. Pi asks you to confirm first, and the tool only works in the interactive UI.
+
+Each worktree gets a branch `pi/<name>` cut from the current `HEAD`. The name is random when omitted. Worktrees are stored outside the repository in `~/.pi/agent/worktrees/<repo>-<hash>/<name>`. Gitignored files listed one per line in a `.worktreeinclude` file at the repository root, such as `.env`, are copied in; only literal paths are supported.
+
+When you quit, a worktree that Pi created in this run is removed with its branch if it has no changes and no new commits. Otherwise Pi keeps it and prints its path.
+
 ## Run a terminal command
 
 Prefix a command with `!` to run it and include its output in the conversation:
