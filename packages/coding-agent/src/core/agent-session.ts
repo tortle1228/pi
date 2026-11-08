@@ -137,6 +137,7 @@ import {
 	applyToolModifiers,
 	type CacheWarmingMode,
 	DEFAULT_TOOL_NAMES,
+	type Profile,
 	type SettingsManager,
 } from "./settings-manager.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
@@ -2747,20 +2748,83 @@ export class AgentSession {
 		await this._applyMode(previousMode);
 	}
 
-	/** The defaults of the current mode. Plan mode follows the build defaults for values it does not set. */
-	getModeDefaults(): { provider?: string; modelId?: string; thinkingLevel?: ThinkingLevel } {
+	/** The defaults of a mode (the current one by default). Plan mode follows the build defaults for values it does not set. */
+	getModeDefaults(mode: AgentMode = this._mode): {
+		provider?: string;
+		modelId?: string;
+		thinkingLevel?: ThinkingLevel;
+	} {
 		const build = {
 			provider: this.settingsManager.getDefaultProvider(),
 			modelId: this.settingsManager.getDefaultModel(),
 			thinkingLevel: this.settingsManager.getDefaultThinkingLevel(),
 		};
-		if (this._mode === "build") return build;
+		if (mode === "build") return build;
 		const plan = this.settingsManager.getPlanDefaults();
 		return {
 			provider: plan.defaultProvider ?? build.provider,
 			modelId: plan.defaultModel ?? build.modelId,
 			thinkingLevel: plan.defaultThinkingLevel ?? build.thinkingLevel,
 		};
+	}
+
+	/** The model and thinking level of both modes: the live state for the current mode, the branch or defaults for the other. */
+	getProfileSnapshot(): Profile {
+		const forMode = (mode: AgentMode) => {
+			if (mode === this._mode) {
+				if (!this.model) throw new Error("No model selected");
+				return { provider: this.model.provider, model: this.model.id, thinkingLevel: this.thinkingLevel };
+			}
+			const selection = getModeSelection(this.sessionManager.getBranch(), mode);
+			const defaults = this.getModeDefaults(mode);
+			const provider = selection.model?.provider ?? defaults.provider ?? this.model?.provider;
+			const model = selection.model?.modelId ?? defaults.modelId ?? this.model?.id;
+			if (!provider || !model) throw new Error(`No model for ${mode} mode`);
+			// Same order as a real switch to that mode.
+			const thinkingLevel =
+				(selection.thinkingLevel as ThinkingLevel | undefined) ??
+				defaults.thinkingLevel ??
+				this.settingsManager.getModelThinkingLevel(provider, model) ??
+				this.thinkingLevel;
+			return { provider, model, thinkingLevel };
+		};
+		return { build: forMode("build"), plan: forMode("plan") };
+	}
+
+	/** Saves both modes' selections as the defaults and applies them to this session. Changes nothing if a model is unusable. */
+	async applyProfile(profile: Profile): Promise<void> {
+		const models = {
+			build: this._modelRuntime.getModel(profile.build.provider, profile.build.model),
+			plan: this._modelRuntime.getModel(profile.plan.provider, profile.plan.model),
+		};
+		for (const mode of ["build", "plan"] as const) {
+			const { provider, model } = profile[mode];
+			if (!models[mode]) throw new Error(`Unknown model ${provider}/${model}`);
+			if (!(await this._modelRuntime.checkAuth(provider))) throw new Error(`No API key for ${provider}/${model}`);
+		}
+
+		this.settingsManager.setDefaultModelAndProvider(profile.build.provider, profile.build.model);
+		this.settingsManager.setDefaultThinkingLevel(profile.build.thinkingLevel);
+		this.settingsManager.setPlanDefaultModelAndProvider(profile.plan.provider, profile.plan.model);
+		this.settingsManager.setPlanDefaultThinkingLevel(profile.plan.thinkingLevel);
+
+		// Record the other mode's selection on the branch, or switching to it would restore an older one.
+		const current = this._mode;
+		const other: AgentMode = current === "build" ? "plan" : "build";
+		this.sessionManager.appendModeChange(other);
+		this.sessionManager.appendModelChange(profile[other].provider, profile[other].model);
+		this.sessionManager.appendThinkingLevelChange(profile[other].thinkingLevel);
+		this.sessionManager.appendModeChange(current);
+
+		const model = models[current]!;
+		const previousModel = this.model;
+		const changed = !modelsAreEqual(previousModel, model);
+		if (changed) {
+			this.agent.state.model = model;
+			this.sessionManager.appendModelChange(model.provider, model.id);
+		}
+		this.setThinkingLevel(profile[current].thinkingLevel);
+		if (changed) await this._emitModelSelect(model, previousModel, "set");
 	}
 
 	/** Switching back restores what the branch records, which can differ from the live state, as with `--model`. */

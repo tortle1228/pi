@@ -3311,6 +3311,11 @@ export class InteractiveMode {
 				this.handleThinkingCommand(searchTerm);
 				return;
 			}
+			if (text === "/profile" || text.startsWith("/profile ")) {
+				this.editor.setText("");
+				await this.handleProfileCommand(text.slice(8).trim());
+				return;
+			}
 			if (text === "/export" || text.startsWith("/export ")) {
 				await this.handleExportCommand(text);
 				this.editor.setText("");
@@ -5312,6 +5317,68 @@ export class InteractiveMode {
 			);
 			return { component: selector, focus: selector.getSettingsList() };
 		});
+	}
+
+	private async handleProfileCommand(args: string): Promise<void> {
+		const [first, ...rest] = args.split(/\s+/);
+		const name = rest.join(" ");
+		if ((first === "save" || first === "delete") && name) {
+			if (first === "save") {
+				try {
+					this.settingsManager.saveProfile(name, this.session.getProfileSnapshot());
+					this.showStatus(`Saved profile: ${name}`);
+				} catch (error) {
+					this.showError(error instanceof Error ? error.message : String(error));
+				}
+			} else if (this.settingsManager.getProfiles()[name]) {
+				this.settingsManager.deleteProfile(name);
+				this.showStatus(`Deleted profile: ${name}`);
+			} else {
+				this.showError(`Unknown profile "${name}"`);
+			}
+			return;
+		}
+		if (first === "save" || first === "delete") {
+			this.showError(`Usage: /profile ${first} <name>`);
+			return;
+		}
+		if (args) {
+			await this.loadProfile(args);
+			return;
+		}
+		const names = Object.keys(this.settingsManager.getProfiles());
+		if (names.length === 0) {
+			this.showStatus("No profiles. Save one with /profile save <name>");
+			return;
+		}
+		this.showSelector((done) => {
+			const selector = new ExtensionSelectorComponent(
+				"Load profile",
+				names,
+				(option) => {
+					done();
+					void this.loadProfile(option);
+				},
+				done,
+			);
+			return { component: selector, focus: selector };
+		});
+	}
+
+	private async loadProfile(name: string): Promise<void> {
+		const profile = this.settingsManager.getProfiles()[name];
+		if (!profile) {
+			this.showError(`Unknown profile "${name}"`);
+			return;
+		}
+		try {
+			await this.session.applyProfile(profile);
+			this.footer.invalidate();
+			this.updateEditorBorderColor();
+			this.showStatus(`Profile: ${name}`);
+		} catch (error) {
+			this.showError(error instanceof Error ? error.message : String(error));
+		}
 	}
 
 	private handleThinkingCommand(searchTerm?: string): void {

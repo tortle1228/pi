@@ -14,6 +14,7 @@ Add `"$schema": "https://pi.dev/schemas/settings.schema.json"` to `settings.json
 | `defaultModel` | string | Automatic | Startup model ID. |
 | `defaultThinkingLevel` | `"off" \| "minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | `"medium"` | Startup thinking level. |
 | `plan` | object | None | Plan mode defaults: `defaultProvider`, `defaultModel`, `defaultThinkingLevel`. `bashApproval` (`"ask"` default, or `"allow"`) controls whether bash commands that are not known inspection commands ask first; `"allow"` runs them without asking. Values left out follow the top-level defaults. `Ctrl+S` in `/model` and `/thinking` saves here while in Plan mode. |
+| `profiles` | object | None | Saved Plan/Build model profiles keyed by name, each `{ build, plan }` with `provider`, `model`, `thinkingLevel`. Manage with `/profile save <name>`, `/profile <name>`, `/profile delete <name>`. Loading a profile overwrites the build and `plan` defaults and applies to the current session. |
 | `modelThinkingLevels` | object | None | Per-model startup thinking levels keyed by exact `provider/modelId`. |
 | `thinkingBudgets` | object | Built-in budgets | Token budgets for `minimal`, `low`, `medium`, and `high` thinking levels. |
 | `enabledModels` | `string[]` | All available models | Model patterns used for startup selection and model cycling. Uses the same format as `--models`. |

@@ -18,6 +18,7 @@ import type {
 	MermaidRenderingMode,
 	PackageSource,
 	PlanModeSettings,
+	Profile,
 	QuietStartup,
 	SessionShareDestination,
 	Settings,
@@ -41,6 +42,7 @@ export type {
 	MermaidRenderingMode,
 	PackageSource,
 	PlanModeSettings,
+	Profile,
 	ProviderRetrySettings,
 	QuietStartup,
 	RetrySettings,
@@ -735,6 +737,23 @@ export class SettingsManager {
 		this.globalSettings.plan = { ...this.globalSettings.plan, defaultProvider: provider, defaultModel: modelId };
 		this.markModified("plan", "defaultProvider");
 		this.markModified("plan", "defaultModel");
+		this.save();
+	}
+
+	getProfiles(): Record<string, Profile> {
+		return this.globalSettings.profiles ?? {};
+	}
+
+	saveProfile(name: string, profile: Profile): void {
+		this.globalSettings.profiles = { ...this.globalSettings.profiles, [name]: profile };
+		this.markModified("profiles", name);
+		this.save();
+	}
+
+	deleteProfile(name: string): void {
+		const { [name]: _removed, ...rest } = this.globalSettings.profiles ?? {};
+		this.globalSettings.profiles = rest;
+		this.markModified("profiles", name);
 		this.save();
 	}
 

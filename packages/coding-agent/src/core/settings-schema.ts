@@ -237,6 +237,14 @@ const PlanModeSettingsSchema = Type.Object(
 	{ description: "Plan mode defaults. Values left out follow the top-level defaults." },
 );
 
+const ModeProfileSchema = Type.Object({
+	provider: Type.String(),
+	model: Type.String(),
+	thinkingLevel: ModelThinkingLevelSchema,
+});
+
+const ProfileSchema = Type.Object({ build: ModeProfileSchema, plan: ModeProfileSchema });
+
 export const SettingsSchema = Type.Object(
 	{
 		$schema: Type.Optional(Type.String({ description: "JSON Schema reference." })),
@@ -250,6 +258,11 @@ export const SettingsSchema = Type.Object(
 		defaultModel: Type.Optional(Type.String()),
 		defaultThinkingLevel: Type.Optional(ModelThinkingLevelSchema),
 		plan: Type.Optional(PlanModeSettingsSchema),
+		profiles: Type.Optional(
+			Type.Record(Type.String(), ProfileSchema, {
+				description: "Saved Plan/Build model profiles, keyed by name. Manage them with /profile.",
+			}),
+		),
 		modelThinkingLevels: Type.Optional(
 			Type.Record(Type.String(), ModelThinkingLevelSchema, {
 				description: 'Per-model default thinking level overrides keyed by "provider/modelId".',
@@ -513,6 +526,7 @@ export const SettingsSchema = Type.Object(
 type SettingsInput = Static<typeof SettingsSchema>;
 
 export interface CompactionModelOverride extends Static<typeof CompactionModelOverrideSchema> {}
+export type Profile = Static<typeof ProfileSchema>;
 export interface PlanModeSettings extends Static<typeof PlanModeSettingsSchema> {}
 export interface CompactionSettings extends Static<typeof CompactionSettingsSchema> {}
 export interface BranchSummarySettings extends Static<typeof BranchSummarySettingsSchema> {}
