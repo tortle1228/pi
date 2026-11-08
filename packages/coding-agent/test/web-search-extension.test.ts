@@ -1,6 +1,6 @@
 // Verify extension registration, provider transitions, and execution-time provider and auth selection.
 import type { TSchema } from "typebox";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -42,10 +42,14 @@ function harness(defaultTools?: string[]) {
 	webSearch(stub as unknown as ExtensionAPI);
 	const tool = registered.get("web_search");
 	const xSearch = registered.get("x_search");
-	if (!tool || !xSearch) throw new Error("search tools were not registered");
+	const webFetch = registered.get("web_fetch");
+	const webResearch = registered.get("web_research");
+	if (!tool || !xSearch || !webFetch || !webResearch) throw new Error("search tools were not registered");
 	return {
 		tool,
 		xSearch,
+		webFetch,
+		webResearch,
 		active: () => active,
 		disable: () => stub.setActiveTools(active.filter((name) => name !== "web_search")),
 		emit(event: string, ctx: ExtensionContext) {
@@ -57,6 +61,15 @@ function harness(defaultTools?: string[]) {
 }
 
 describe("provider-aware web_search", () => {
+	const savedKey = process.env.PARALLEL_API_KEY;
+	beforeEach(() => {
+		delete process.env.PARALLEL_API_KEY;
+	});
+	afterEach(() => {
+		if (savedKey === undefined) delete process.env.PARALLEL_API_KEY;
+		else process.env.PARALLEL_API_KEY = savedKey;
+	});
+
 	it("registers inactive standalone search tools", () => {
 		const h = harness();
 		expect(h.tool.name).toBe("web_search");
@@ -241,5 +254,180 @@ describe("provider-aware web_search", () => {
 			content: [{ type: "text", text: "Release notes: https://example.com/releases" }],
 			details: { backend: "zai" },
 		});
+	});
+
+	it("keeps Parallel tools off without a key, including on an unsupported provider", () => {
+		const h = harness();
+		h.emit("session_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash"]);
+		expect(h.webFetch.defaultActive).toBe(false);
+		expect(h.webResearch.defaultActive).toBe(false);
+	});
+
+	it("uses Parallel for a provider without native search when the key is set", async () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		const h = harness();
+		h.emit("session_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash", "web_search", "web_fetch", "web_research"]);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (_input: unknown, init?: RequestInit) => {
+				expect(JSON.parse(String(init?.body))).toEqual({
+					objective: "docs",
+					search_queries: ["docs"],
+					mode: "fast",
+				});
+				expect(new Headers(init?.headers).get("x-api-key")).toBe("pk-test");
+				return Response.json({ results: [{ url: "https://ex.com", title: "Ex", excerpts: ["note"] }] });
+			}),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const result = await h.tool.execute("id", { query: "docs" }, undefined, undefined, context("google"));
+		expect(result).toEqual({
+			content: [{ type: "text", text: "Ex\nhttps://ex.com\nnote" }],
+			details: { backend: "parallel" },
+		});
+	});
+
+	it("retries a failed native search once with Parallel", async () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		const backend = getSearchBackend("zai");
+		if (!backend) throw new Error("zai backend is missing");
+		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("native down"));
+		onTestFinished(() => search.mockRestore());
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ results: [{ url: "https://ex.com", title: "Ex", excerpts: ["note"] }] })),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const result = await harness().tool.execute("id", { query: "docs" }, undefined, undefined, context("zai"));
+		expect(search).toHaveBeenCalledOnce();
+		expect(result.details).toEqual({ backend: "parallel", fallbackFrom: "zai" });
+	});
+
+	it("keeps the native error when Parallel is not configured", async () => {
+		const backend = getSearchBackend("zai");
+		if (!backend) throw new Error("zai backend is missing");
+		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("native down"));
+		onTestFinished(() => search.mockRestore());
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		await expect(
+			harness().tool.execute("id", { query: "docs" }, undefined, undefined, context("zai")),
+		).rejects.toThrow("native down");
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("does not fall back when the caller cancelled", async () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		const backend = getSearchBackend("zai");
+		if (!backend) throw new Error("zai backend is missing");
+		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("cancelled"));
+		onTestFinished(() => search.mockRestore());
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const controller = new AbortController();
+		controller.abort();
+		await expect(
+			harness().tool.execute("id", { query: "docs" }, controller.signal, undefined, context("zai")),
+		).rejects.toThrow("cancelled");
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("reports both errors when the Parallel fallback also fails", async () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		const backend = getSearchBackend("zai");
+		if (!backend) throw new Error("zai backend is missing");
+		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("native down"));
+		onTestFinished(() => search.mockRestore());
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ error: { message: "nope" } }, { status: 500, statusText: "nope" })),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		await expect(
+			harness().tool.execute("id", { query: "docs" }, undefined, undefined, context("zai")),
+		).rejects.toThrow("native down\nParallel fallback failed: Parallel Search request failed (500): nope");
+	});
+
+	it("keeps web_fetch off when defaultTools removes it", () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		const h = harness(["-web_fetch"]);
+		h.emit("session_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash", "web_search", "web_research"]);
+	});
+
+	it("rejects a password or non-http URL and sends the parsed URL", async () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		const h = harness();
+		const fetchMock = vi.fn(async (_input: unknown, init?: RequestInit) => {
+			expect(JSON.parse(String(init?.body))).toEqual({ urls: ["https://ex.com/"] });
+			return Response.json({ results: [{ url: "https://ex.com/", title: "Ex", excerpts: ["page"] }] });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		await expect(
+			h.webFetch.execute("id", { urls: ["javascript:alert(1)"] }, undefined, undefined, context("google")),
+		).rejects.toThrow("URL must be http or https: javascript:alert(1)");
+		await expect(
+			h.webFetch.execute("id", { urls: ["https://alice:s3cret@ex.com/a"] }, undefined, undefined, context("google")),
+		).rejects.toThrow("URL must not include a username or password.");
+		expect(fetchMock).not.toHaveBeenCalled();
+		const result = await h.webFetch.execute(
+			"id",
+			{ urls: ["https://ex.com"] },
+			undefined,
+			undefined,
+			context("google"),
+		);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(result.content).toEqual([{ type: "text", text: "Ex\nhttps://ex.com/\npage" }]);
+	});
+
+	it("keeps the research Response ID when the answer is truncated", async () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					id: "resp_keep",
+					status: "completed",
+					output: [
+						{
+							type: "message",
+							content: [{ type: "output_text", text: "word ".repeat(20_000), annotations: [] }],
+						},
+					],
+				}),
+			),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const result = await harness().webResearch.execute(
+			"id",
+			{ query: "long" },
+			undefined,
+			undefined,
+			context("google"),
+		);
+		const block = result.content[0];
+		if (!block || block.type !== "text") throw new Error("Expected a text result");
+		expect(block.text).toContain("Response ID: resp_keep");
+		expect(block.text).toMatch(/\[Search results truncated:/);
 	});
 });

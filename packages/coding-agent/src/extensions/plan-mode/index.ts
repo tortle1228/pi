@@ -16,6 +16,8 @@ const INSPECTION_TOOLS = new Set([
 	"ls",
 	"request_user_input",
 	"web_search",
+	"web_fetch",
+	"web_research",
 	"x_search",
 	"tool_search",
 ]);
