@@ -7,6 +7,8 @@ export default mergeConfig(
 		test: {
 			globals: true,
 			environment: "node",
+			// Cap parallelism so a full run does not saturate every core.
+			maxWorkers: "50%",
 			testTimeout: 30000,
 			// Tests run offline by default; opt in with allowNetwork() from test/test-network-env.ts.
 			env: { PI_OFFLINE: "1" },
