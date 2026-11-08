@@ -14,11 +14,11 @@ import webSearch from "../src/extensions/web-search/index.ts";
 import { getSearchBackend, getXSearchBackend } from "../src/extensions/web-search/search.ts";
 import { searchZai } from "../src/extensions/web-search/zai.ts";
 
-const savedKeys: { parallel?: string; tavily?: string } = {};
+const savedKeys: { parallel?: string; tavily?: string; exa?: string; firecrawl?: string } = {};
 let authFailure: Error | undefined;
 
 function storedKey(id: string): string | undefined {
-	return id === "parallel" ? savedKeys.parallel : id === "tavily" ? savedKeys.tavily : undefined;
+	return id === "parallel" || id === "tavily" || id === "exa" || id === "firecrawl" ? savedKeys[id] : undefined;
 }
 
 function context(provider?: string): ExtensionToolContext {
@@ -87,6 +87,8 @@ describe("provider-aware web_search", () => {
 	beforeEach(() => {
 		delete savedKeys.parallel;
 		delete savedKeys.tavily;
+		delete savedKeys.exa;
+		delete savedKeys.firecrawl;
 		authFailure = undefined;
 		delete process.env.PARALLEL_API_KEY;
 		delete process.env.TAVILY_API_KEY;
@@ -523,6 +525,57 @@ describe("provider-aware web_search", () => {
 		const h = harness();
 		h.emit("session_start", context("google"));
 		expect(h.active()).toEqual(["read", "bash", "web_search", "web_fetch"]);
+	});
+
+	it("enables web_fetch but not web_research when only the Exa key is set, and fetches with Exa", async () => {
+		savedKeys.exa = "exa-test";
+		const h = harness();
+		h.emit("session_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash", "web_search", "web_fetch"]);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string) => {
+				expect(String(input)).toBe("https://api.exa.ai/contents");
+				return Response.json({ results: [{ url: "https://ex.com/", text: "page" }], statuses: [] });
+			}),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const result = await h.webFetch.execute(
+			"id",
+			{ urls: ["https://ex.com/"] },
+			undefined,
+			undefined,
+			context("google"),
+		);
+		expect(result.details).toEqual({ backend: "exa" });
+	});
+
+	it("falls back from Tavily to Firecrawl when the order says so", async () => {
+		savedKeys.tavily = "tvly-test";
+		savedKeys.firecrawl = "fc-test";
+		const hosts: string[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string) => {
+				hosts.push(new URL(String(input)).host);
+				if (hosts.length === 1) return new Response("no", { status: 500 });
+				return Response.json({ data: { web: [{ url: "https://ex.com/", title: "A", description: "d" }] } });
+			}),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const result = await harness(undefined, ["tavily", "firecrawl"]).tool.execute(
+			"id",
+			{ query: "docs" },
+			undefined,
+			undefined,
+			context("google"),
+		);
+		expect(hosts).toEqual(["api.tavily.com", "api.firecrawl.dev"]);
+		expect(result.details).toEqual({ backend: "firecrawl", fallbackFrom: "tavily" });
 	});
 
 	it("does not try Tavily after a cancelled native search", async () => {

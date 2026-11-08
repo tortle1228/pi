@@ -9,13 +9,16 @@ import {
 	fetchWeb,
 	getSearchBackend,
 	getXSearchBackend,
+	KEYED_BACKEND_IDS,
 	resolveWebSearch,
+	SEARCH_LOGINS,
 	type SearchBackend,
+	type SearchLogin,
 	searchKey,
 	webFetchAvailable,
 } from "./search.ts";
 
-function credentialProvider(id: "parallel" | "tavily", name: string): Provider {
+function credentialProvider(id: SearchLogin, name: string): Provider {
 	return {
 		id,
 		name,
@@ -108,8 +111,7 @@ const parallelToolNames = ["web_fetch", "web_research"] as const;
 
 /** Register provider-aware web and X search without changing other tools' active states. */
 export default function webSearch(pi: ExtensionAPI): void {
-	pi.registerProvider(credentialProvider("parallel", "Parallel"));
-	pi.registerProvider(credentialProvider("tavily", "Tavily"));
+	for (const id of KEYED_BACKEND_IDS) pi.registerProvider(credentialProvider(id, SEARCH_LOGINS[id].name));
 
 	for (const tool of searchTools) {
 		pi.registerTool(
@@ -149,8 +151,8 @@ export default function webSearch(pi: ExtensionAPI): void {
 			name: "web_fetch",
 			label: "Web Fetch",
 			description:
-				"Extract excerpts from public http(s) URLs with Parallel or Tavily, in webSearch.order. A failed URL is reported as an error line; a failed backend tries the next one.",
-			promptSnippet: "Extract excerpts from URLs with Parallel or Tavily",
+				"Extract excerpts from public http(s) URLs with Parallel, Tavily, Exa, or Firecrawl, in webSearch.order. A failed URL is reported as an error line; a failed backend tries the next one.",
+			promptSnippet: "Extract excerpts from URLs with Parallel, Tavily, Exa, or Firecrawl",
 			promptGuidelines: ["Cite the source URLs returned by web_fetch."],
 			defaultActive: false,
 			parameters: Type.Object({
@@ -265,7 +267,7 @@ export default function webSearch(pi: ExtensionAPI): void {
 		seenLogins = loginState(ctx);
 	};
 	const loginState = (ctx: ExtensionContext) =>
-		["parallel", "tavily"].map((id) => ctx.modelRegistry.getProviderAuthStatus(id).configured).join();
+		KEYED_BACKEND_IDS.map((id) => ctx.modelRegistry.getProviderAuthStatus(id).configured).join();
 	let seenLogins: string | undefined;
 	pi.on("session_start", (_event, ctx) => synchronize(ctx));
 	pi.on("model_select", (_event, ctx) => synchronize(ctx));

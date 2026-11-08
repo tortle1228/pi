@@ -148,14 +148,14 @@ The MCP resource tools (`list_mcp_resources`, `list_mcp_resource_templates`, `re
 | `find` | Find paths using glob patterns |
 | `ls` | List directory contents |
 
-Built-in extensions add `tasks` (on by default), `web_search` (on when the selected provider supports it, or after `/login parallel` or `/login tavily`; see [Web Search](web-search.md)), `x_search` (on for xAI), `web_fetch` (on when Parallel or Tavily is logged in), `web_research` (on after `/login parallel`), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
+Built-in extensions add `tasks` (on by default), `web_search` (on when the selected provider supports it, or after `/login parallel`, `/login tavily`, `/login exa`, or `/login firecrawl`; see [Web Search](web-search.md)), `x_search` (on for xAI), `web_fetch` (on when Parallel, Tavily, Exa, or Firecrawl is logged in), `web_research` (on after `/login parallel`), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
 
 | Built-in extension | Purpose |
 |---|---|
 | `codemode` | Run JavaScript that calls the other tools, for example in parallel with `Promise.allSettled`; only the script's output reaches the model |
 | `tool_search` | Search tools that are not declared to the model (`codemode` and `deferred` exposure, such as MCP tools) and declare the matches for the next call |
-| `web_search` | Search the web with the selected Z.AI, OpenAI, Anthropic, or xAI provider, then Parallel or Tavily in `webSearch.order` when that search is missing or fails, and return source links |
-| `web_fetch` | Extract excerpts from URLs with Parallel or Tavily, in `webSearch.order` |
+| `web_search` | Search the web with the selected Z.AI, OpenAI, Anthropic, or xAI provider, then Parallel, Tavily, Exa, or Firecrawl in `webSearch.order` when that search is missing or fails, and return source links |
+| `web_fetch` | Extract excerpts from URLs with Parallel, Tavily, Exa, or Firecrawl, in `webSearch.order` |
 | `web_research` | Answer a question from the web with Parallel and return citations |
 | `x_search` | Search posts on X with the selected xAI model and return source links |
 

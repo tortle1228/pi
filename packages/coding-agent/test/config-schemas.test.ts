@@ -214,7 +214,7 @@ describe("generated configuration schemas", () => {
 				httpIdleTimeoutMs: 0,
 				websocketConnectTimeoutMs: "disabled",
 				codemode: { inlineBudget: 0 },
-				webSearch: { order: ["tavily", "native"] },
+				webSearch: { order: ["tavily", "native", "exa", "firecrawl"] },
 			}),
 		).toBe(true);
 	});

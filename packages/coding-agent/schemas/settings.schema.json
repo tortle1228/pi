@@ -701,6 +701,14 @@
               {
                 "type": "string",
                 "const": "tavily"
+              },
+              {
+                "type": "string",
+                "const": "exa"
+              },
+              {
+                "type": "string",
+                "const": "firecrawl"
               }
             ]
           },
@@ -709,7 +717,9 @@
           "default": [
             "native",
             "parallel",
-            "tavily"
+            "tavily",
+            "exa",
+            "firecrawl"
           ]
         }
       }

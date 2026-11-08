@@ -2,6 +2,8 @@
 import type { ExtensionContext } from "../../core/extensions/types.ts";
 import { SETTINGS_DEFAULTS } from "../../core/settings-defaults.ts";
 import { searchAnthropic } from "./anthropic.ts";
+import { extractExa, searchExa } from "./exa.ts";
+import { extractFirecrawl, searchFirecrawl } from "./firecrawl.ts";
 import { searchOpenAI, searchX, searchXai } from "./openai.ts";
 import { extractParallel, searchParallel } from "./parallel.ts";
 import { extractTavily, searchTavily } from "./tavily.ts";
@@ -14,7 +16,7 @@ export interface SearchResult {
 	fallbackFrom?: string;
 }
 
-const WEB_SEARCH_BACKENDS = ["native", "parallel", "tavily"] as const;
+const WEB_SEARCH_BACKENDS = ["native", "parallel", "tavily", "exa", "firecrawl"] as const;
 export type WebSearchBackendId = (typeof WEB_SEARCH_BACKENDS)[number];
 
 export interface SearchBackend {
@@ -93,12 +95,23 @@ async function firstSuccess<T>(
 
 export type SearchAuth = Pick<ExtensionContext["modelRegistry"], "getProviderAuthStatus" | "getProviderAuth">;
 
-const SEARCH_LOGINS = {
+export const SEARCH_LOGINS = {
 	parallel: { name: "Parallel", missing: "Parallel authentication required. Run /login parallel." },
 	tavily: { name: "Tavily", missing: "Tavily authentication required. Run /login tavily." },
+	exa: { name: "Exa", missing: "Exa authentication required. Run /login exa." },
+	firecrawl: { name: "Firecrawl", missing: "Firecrawl authentication required. Run /login firecrawl." },
 } as const;
 
-type SearchLogin = keyof typeof SEARCH_LOGINS;
+export type SearchLogin = keyof typeof SEARCH_LOGINS;
+
+const KEYED_BACKENDS = {
+	parallel: { search: searchParallel, extract: extractParallel },
+	tavily: { search: searchTavily, extract: extractTavily },
+	exa: { search: searchExa, extract: extractExa },
+	firecrawl: { search: searchFirecrawl, extract: extractFirecrawl },
+} satisfies Record<SearchLogin, unknown>;
+
+export const KEYED_BACKEND_IDS = Object.keys(SEARCH_LOGINS) as SearchLogin[];
 
 function configured(auth: SearchAuth, id: SearchLogin): boolean {
 	return auth.getProviderAuthStatus(id).configured;
@@ -150,9 +163,7 @@ export function resolveWebSearch(
 						label: SEARCH_LOGINS[login].name,
 						run: async () => {
 							const apiKey = await searchKey(ctx.modelRegistry, login);
-							return login === "parallel"
-								? searchParallel(query, apiKey, signal)
-								: searchTavily(query, apiKey, signal);
+							return KEYED_BACKENDS[login].search(query, apiKey, signal);
 						},
 					});
 				}
@@ -186,16 +197,15 @@ export async function fetchWeb(
 			label: SEARCH_LOGINS[login].name,
 			run: async () => {
 				const apiKey = await searchKey(auth, login);
-				const text =
-					login === "parallel"
-						? await extractParallel(urls, objective, apiKey, signal)
-						: await extractTavily(urls, objective, apiKey, signal);
+				const text = await KEYED_BACKENDS[login].extract(urls, objective, apiKey, signal);
 				return { backend: login, text };
 			},
 		});
 	}
 	if (attempts.length === 0) {
-		throw new Error("Web fetch requires a saved key. Run /login parallel or /login tavily.");
+		throw new Error(
+			"Web fetch requires a saved key. Run /login parallel, /login tavily, /login exa, or /login firecrawl.",
+		);
 	}
 	const { value, fallbackFrom } = await firstSuccess(attempts, signal);
 	return fallbackFrom ? { ...value, fallbackFrom } : value;

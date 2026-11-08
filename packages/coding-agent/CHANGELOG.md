@@ -18,6 +18,7 @@
 - `pi.registerMarkdownTransformer()` takes an optional `{ messageTypes }` that selects the Markdown surfaces a transformer runs on. Besides user, assistant, and thinking Markdown, transformers can now opt into `custom` (custom messages and skill blocks), `summary` (branch and compaction summaries), and `changelog` (What's New, `/changelog`, the Extension Updates notice, and the Update Available note). Without options a transformer runs on user, assistant, and thinking Markdown as before. The built-in Mermaid renderer now also draws diagrams in expanded branch and compaction summaries
 - Added Parallel as a web search fallback. After `/login parallel`, providers without a native search use Parallel Search, a failed native `web_search` tries the next backend in `webSearch.order`, and `web_fetch` and `web_research` are available
 - Added Tavily as a web search and fetch backend. Run `/login tavily`. `webSearch.order` (default `native`, `parallel`, `tavily`) chooses the fallback order for `web_search` and `web_fetch`; a missing backend is skipped and a failure tries the next one. `web_research` stays Parallel only. Keys are saved in `auth.json`, not read from the environment
+- Added Exa and Firecrawl as web search and fetch backends. Run `/login exa` or `/login firecrawl`. They are appended to the default `webSearch.order` and are skipped until logged in. Exa returns highlights; Firecrawl search returns titles and descriptions, and its fetch scrapes each URL as markdown and ignores `objective`
 
 ### Changed
 

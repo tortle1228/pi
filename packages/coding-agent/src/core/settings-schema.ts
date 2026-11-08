@@ -151,7 +151,13 @@ function codemodeMode(options?: TSchemaOptions) {
 
 const CodemodeModeSchema = codemodeMode();
 
-const WebSearchBackendSchema = Type.Union([Type.Literal("native"), Type.Literal("parallel"), Type.Literal("tavily")]);
+const WebSearchBackendSchema = Type.Union([
+	Type.Literal("native"),
+	Type.Literal("parallel"),
+	Type.Literal("tavily"),
+	Type.Literal("exa"),
+	Type.Literal("firecrawl"),
+]);
 
 const WebSearchSettingsSchema = Type.Object({
 	order: Type.Optional(

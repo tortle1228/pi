@@ -1,19 +1,10 @@
 // Tavily Search and Extract calls. The caller supplies the stored key.
+import { isRecord, postJson, withDeadline as sharedDeadline } from "./http.ts";
 import type { SearchResult } from "./search.ts";
 
 const SEARCH_URL = "https://api.tavily.com/search";
 const EXTRACT_URL = "https://api.tavily.com/extract";
 const TIMEOUT_MS = 60_000;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function redact(error: unknown, apiKey: string): Error {
-	const message = error instanceof Error ? error.message : String(error);
-	const redacted = apiKey ? message.replaceAll(apiKey, "[REDACTED]") : message;
-	return new Error(redacted.trim() || "Tavily request failed");
-}
 
 function errorText(payload: unknown): string | undefined {
 	if (!isRecord(payload)) return undefined;
@@ -24,52 +15,17 @@ function errorText(payload: unknown): string | undefined {
 	return undefined;
 }
 
-async function tavilyPost(
-	url: string,
-	body: unknown,
-	apiKey: string,
-	signal: AbortSignal,
-	label: string,
-): Promise<unknown> {
-	const response = await fetch(url, {
-		method: "POST",
-		headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-		body: JSON.stringify(body),
-		signal,
-		redirect: "error",
-	});
-	if (!response.ok) {
-		let message = response.statusText || "request failed";
-		try {
-			message = errorText(await response.json()) ?? message;
-		} catch {
-			/* A non-JSON error body still reports the status. */
-		}
-		throw new Error(`Tavily ${label} request failed (${response.status}): ${message}`);
-	}
-	try {
-		return await response.json();
-	} catch {
-		throw new Error(`Tavily returned malformed ${label.toLowerCase()} JSON.`);
-	}
+function post(url: string, body: unknown, apiKey: string, signal: AbortSignal, label: string): Promise<unknown> {
+	return postJson("Tavily", url, body, { authorization: `Bearer ${apiKey}` }, signal, label, errorText);
 }
 
-async function withDeadline<T>(
+function withDeadline<T>(
 	label: string,
 	signal: AbortSignal | undefined,
 	apiKey: string,
 	run: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
-	if (signal?.aborted) throw new Error(`Tavily ${label} cancelled.`);
-	const deadline = AbortSignal.timeout(TIMEOUT_MS);
-	const requestSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
-	try {
-		return await run(requestSignal);
-	} catch (error) {
-		if (signal?.aborted) throw new Error(`Tavily ${label} cancelled.`);
-		if (deadline.aborted) throw new Error(`Tavily ${label} timed out after ${TIMEOUT_MS / 1000} seconds.`);
-		throw redact(error, apiKey);
-	}
+	return sharedDeadline("Tavily", label, TIMEOUT_MS, signal, apiKey, run);
 }
 
 function renderSearch(payload: unknown): string {
@@ -89,7 +45,7 @@ function renderSearch(payload: unknown): string {
 /** Search with Tavily `basic` depth. Sends only the query. */
 export function searchTavily(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult> {
 	return withDeadline("Search", signal, apiKey, async (requestSignal) => {
-		const payload = await tavilyPost(SEARCH_URL, { query, search_depth: "basic" }, apiKey, requestSignal, "Search");
+		const payload = await post(SEARCH_URL, { query, search_depth: "basic" }, apiKey, requestSignal, "Search");
 		return { backend: "tavily", text: renderSearch(payload) };
 	});
 }
@@ -122,7 +78,7 @@ export function extractTavily(
 	signal?: AbortSignal,
 ): Promise<string> {
 	return withDeadline("Extract", signal, apiKey, async (requestSignal) => {
-		const payload = await tavilyPost(
+		const payload = await post(
 			EXTRACT_URL,
 			objective ? { urls, query: objective } : { urls },
 			apiKey,

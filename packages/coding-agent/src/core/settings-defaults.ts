@@ -61,7 +61,7 @@ export const SETTINGS_DEFAULTS = {
 		inlineBudget: 3000,
 	},
 	webSearch: {
-		order: ["native", "parallel", "tavily"],
+		order: ["native", "parallel", "tavily", "exa", "firecrawl"],
 	},
 	cacheWarming: "streaming",
 	tuiMode: "fullscreen",

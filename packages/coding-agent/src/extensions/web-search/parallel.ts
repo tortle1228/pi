@@ -1,4 +1,5 @@
 // Parallel Search, Extract, and Responses calls. The caller supplies the stored key.
+import { isRecord, postJson, withDeadline as sharedDeadline } from "./http.ts";
 import type { SearchResult } from "./search.ts";
 
 const SEARCH_URL = "https://api.parallel.ai/v1/search";
@@ -7,71 +8,31 @@ const RESPONSES_URL = "https://api.parallel.ai/v1/responses";
 const SEARCH_TIMEOUT_MS = 60_000;
 const RESEARCH_TIMEOUT_MS = 120_000;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function redact(error: unknown, apiKey: string): Error {
-	const message = error instanceof Error ? error.message : String(error);
-	const redacted = apiKey ? message.replaceAll(apiKey, "[REDACTED]") : message;
-	return new Error(redacted.trim() || "Parallel request failed");
-}
-
-async function parallelPost(
-	url: string,
-	body: unknown,
-	apiKey: string,
-	signal: AbortSignal,
-	label: string,
-): Promise<unknown> {
-	const response = await fetch(url, {
-		method: "POST",
-		headers: { "x-api-key": apiKey, "content-type": "application/json" },
-		body: JSON.stringify(body),
-		signal,
-		redirect: "error",
-	});
-	if (!response.ok) {
-		let message = response.statusText || "request failed";
-		try {
-			const payload: unknown = await response.json();
-			if (isRecord(payload) && isRecord(payload.error) && typeof payload.error.message === "string") {
-				message = payload.error.message;
-			} else if (isRecord(payload) && Array.isArray(payload.detail)) {
-				const messages = payload.detail.flatMap((item) =>
-					isRecord(item) && typeof item.msg === "string" && item.msg.trim() ? [item.msg.trim()] : [],
-				);
-				if (messages.length > 0) message = messages.join("; ");
-			}
-		} catch {
-			/* A non-JSON error body still reports the status. */
-		}
-		throw new Error(`Parallel ${label} request failed (${response.status}): ${message}`);
+function errorText(payload: unknown): string | undefined {
+	if (isRecord(payload) && isRecord(payload.error) && typeof payload.error.message === "string") {
+		return payload.error.message;
 	}
-	try {
-		return await response.json();
-	} catch {
-		throw new Error(`Parallel returned malformed ${label.toLowerCase()} JSON.`);
+	if (isRecord(payload) && Array.isArray(payload.detail)) {
+		const messages = payload.detail.flatMap((item) =>
+			isRecord(item) && typeof item.msg === "string" && item.msg.trim() ? [item.msg.trim()] : [],
+		);
+		if (messages.length > 0) return messages.join("; ");
 	}
+	return undefined;
 }
 
-async function withDeadline<T>(
+function post(url: string, body: unknown, apiKey: string, signal: AbortSignal, label: string): Promise<unknown> {
+	return postJson("Parallel", url, body, { "x-api-key": apiKey }, signal, label, errorText);
+}
+
+function withDeadline<T>(
 	ms: number,
 	label: string,
 	signal: AbortSignal | undefined,
 	apiKey: string,
 	run: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
-	if (signal?.aborted) throw new Error(`Parallel ${label} cancelled.`);
-	const deadline = AbortSignal.timeout(ms);
-	const requestSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
-	try {
-		return await run(requestSignal);
-	} catch (error) {
-		if (signal?.aborted) throw new Error(`Parallel ${label} cancelled.`);
-		if (deadline.aborted) throw new Error(`Parallel ${label} timed out after ${ms / 1000} seconds.`);
-		throw redact(error, apiKey);
-	}
+	return sharedDeadline("Parallel", label, ms, signal, apiKey, run);
 }
 
 function httpUrl(value: unknown): string | undefined {
@@ -103,7 +64,7 @@ function renderSearch(payload: unknown): string {
 /** Search with Parallel `fast` mode. The query is both the objective and the only keyword query. */
 export function searchParallel(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult> {
 	return withDeadline(SEARCH_TIMEOUT_MS, "Search", signal, apiKey, async (requestSignal) => {
-		const payload = await parallelPost(
+		const payload = await post(
 			SEARCH_URL,
 			{ objective: query, search_queries: [query], mode: "fast" },
 			apiKey,
@@ -148,7 +109,7 @@ export function extractParallel(
 	signal?: AbortSignal,
 ): Promise<string> {
 	return withDeadline(SEARCH_TIMEOUT_MS, "Extract", signal, apiKey, async (requestSignal) => {
-		const payload = await parallelPost(
+		const payload = await post(
 			EXTRACT_URL,
 			objective ? { urls, objective } : { urls },
 			apiKey,
@@ -212,7 +173,7 @@ export function researchParallel(
 		throw new Error("Parallel Research effort must be low, medium, or high.");
 	}
 	return withDeadline(RESEARCH_TIMEOUT_MS, "Research", signal, apiKey, async (requestSignal) => {
-		const payload = await parallelPost(
+		const payload = await post(
 			RESPONSES_URL,
 			{
 				model: "parallel",
