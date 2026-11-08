@@ -1501,7 +1501,8 @@ export class AgentSession {
 			this._cacheWarmer.onWarmed = undefined;
 			this._cacheWarmer.cancel();
 		}
-		cleanupSessionResources(this.sessionId);
+		// Provider resources are keyed by the id requests carry, the cache key.
+		cleanupSessionResources(this.agent.sessionId);
 	}
 
 	// =========================================================================
@@ -4746,7 +4747,7 @@ export class AgentSession {
 			signal: options.signal,
 			streamFn: this.agent.streamFunction,
 			retry: this.settingsManager.getRetrySettings(),
-			sessionId: this.sessionId,
+			sessionId: this.agent.sessionId,
 		});
 	}
 

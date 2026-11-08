@@ -2,8 +2,10 @@
  * System prompt construction and project context loading
  */
 
+import { relative } from "node:path";
 import { getSystemMessageText } from "@earendil-works/pi-ai";
 import { getDocsPath, getExamplesPath, getReadmePath } from "../config.ts";
+import { isPathWithin } from "../utils/paths.ts";
 import { formatSkillsForPrompt, type Skill } from "./skills.ts";
 
 export interface BuildSystemPromptOptions {
@@ -184,14 +186,24 @@ export function buildSystemPromptSections(input: BuildSystemPromptOptions): Syst
 	}
 
 	if (appendSystemPrompt) promptSections.addendum = appendSystemPrompt;
-	if (contextFiles.length > 0) promptSections.project_context = renderProjectContext(contextFiles);
+	// Paths under cwd are relative, so moving the session to another checkout (a git worktree) changes
+	// only the cwd section instead of resending the project context and skills.
+	const promptPath = (path: string) => (isPathWithin(cwd, path) ? relative(cwd, path).replace(/\\/g, "/") : path);
+	if (contextFiles.length > 0) {
+		promptSections.project_context = renderProjectContext(
+			contextFiles.map((file) => ({ ...file, path: promptPath(file.path) })),
+		);
+	}
 	// A hidden reader is still reachable through another tool, so skills stay but the hint names no tool.
 	const readers = ["read", "bash"] as const;
 	const skillFileReadTool =
 		readers.find((tool) => declaredTools.includes(tool)) ??
 		(readers.some((tool) => selectedTools.includes(tool)) ? "indirect" : undefined);
 	if (skillFileReadTool && skills.length > 0) {
-		const skillsPrompt = formatSkillsForPrompt(skills, skillFileReadTool).trim();
+		const skillsPrompt = formatSkillsForPrompt(
+			skills.map((skill) => ({ ...skill, filePath: promptPath(skill.filePath) })),
+			skillFileReadTool,
+		).trim();
 		if (skillsPrompt) promptSections.skills = skillsPrompt;
 	}
 	promptSections.cwd = cwd.replace(/\\/g, "/");

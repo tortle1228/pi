@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { AssistantMessage, SystemMessage } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "@earendil-works/pi-ai/compat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -30,7 +31,7 @@ describe("worktree extension", () => {
 		createdWorktrees.clear();
 	});
 
-	async function setup(options: { confirm?: boolean; mode?: ExtensionMode } = {}) {
+	async function setup(options: { confirm?: boolean; mode?: ExtensionMode; contextFiles?: boolean } = {}) {
 		const root = realpathSync(mkdtempSync(join(tmpdir(), "pi-worktree-suite-")));
 		const agentDir = join(root, "agent");
 		vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
@@ -39,6 +40,7 @@ describe("worktree extension", () => {
 		git(repo, "config", "user.email", "t@example.com");
 		git(repo, "config", "user.name", "t");
 		writeFileSync(join(repo, "a.txt"), "a\n");
+		writeFileSync(join(repo, "AGENTS.md"), `# Rules\n\n${"- follow the project rules\n".repeat(200)}`);
 		git(repo, "add", ".");
 		git(repo, "commit", "-q", "-m", "init");
 
@@ -74,7 +76,7 @@ describe("worktree extension", () => {
 				noSkills: true,
 				noPromptTemplates: true,
 				noThemes: true,
-				noContextFiles: true,
+				noContextFiles: !options.contextFiles,
 			},
 		};
 		const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
@@ -143,6 +145,25 @@ describe("worktree extension", () => {
 		expect(texts).toContain("isolate this work in a worktree");
 		expect(texts.some((t) => t.includes(`Working directory is now ${path}`))).toBe(true);
 		expect(texts).toContain("working in the worktree");
+	});
+
+	it("entering a worktree keeps the prompt cache and sends only the cwd change", async () => {
+		const { runtime, faux, repo } = await setup({ contextFiles: true });
+		faux.setResponses([fauxAssistantMessage("before"), fauxAssistantMessage("after")]);
+
+		await runtime.session.prompt("first");
+		await runtime.session.prompt("/worktree feat");
+		await runtime.session.prompt("second");
+
+		expect(runtime.cwd).toBe(join(worktreesRoot(repo), "feat"));
+		const system = runtime.session.messages.filter((m): m is SystemMessage => m.role === "system");
+		expect(Object.keys(system.at(-1)?.sections ?? {})).toEqual(["cwd"]);
+		const [before, after] = runtime.session.messages.filter((m): m is AssistantMessage => m.role === "assistant");
+		const beforeTokens = before!.usage.cacheRead + before!.usage.cacheWrite;
+		// The whole earlier prompt is read from the cache. Only the cwd update and the new messages are
+		// written, far less than the ~1300-token AGENTS.md a resent project context would add.
+		expect(after!.usage.cacheRead).toBeGreaterThanOrEqual(beforeTokens);
+		expect(after!.usage.cacheWrite).toBeLessThan(300);
 	});
 
 	it("enter_worktree does nothing when the user declines", async () => {

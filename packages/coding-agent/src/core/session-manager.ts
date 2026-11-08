@@ -48,6 +48,8 @@ export interface SessionHeader {
 	timestamp: string;
 	cwd: string;
 	parentSession?: string;
+	/** Provider prompt cache key, inherited by forks so they keep the source's cache. Defaults to `id`. */
+	cacheKey?: string;
 }
 
 export interface NewSessionOptions {
@@ -1161,6 +1163,11 @@ export class SessionManager {
 		return this.sessionId;
 	}
 
+	/** Key that routes provider requests to their prompt cache. A fork keeps its source's key. */
+	getCacheKey(): string {
+		return this.getHeader()?.cacheKey ?? this.sessionId;
+	}
+
 	getSessionFile(): string | undefined {
 		return this.sessionFile;
 	}
@@ -1882,6 +1889,8 @@ export class SessionManager {
 			timestamp,
 			cwd: resolvedTargetCwd,
 			parentSession: resolvedSourcePath,
+			// The fork starts with the source's transcript, so the source's cached prefix still applies.
+			cacheKey: sourceHeader.cacheKey ?? sourceHeader.id,
 		};
 		// Write the header and all non-header entries through one fd. Reopening the file per entry
 		// is slow where open/close is expensive (e.g. filesystem security monitors).

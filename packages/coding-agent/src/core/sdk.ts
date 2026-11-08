@@ -422,7 +422,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			// the current transcript still extends the request's prefix. Agent state may
 			// shallow-copy the messages array or refresh the model object without changing
 			// the provider request, so top-level object identity is not a valid cache key.
-			if (options?.sessionId === sessionManager.getSessionId()) {
+			if (options?.sessionId === sessionManager.getCacheKey()) {
 				cacheWarmer.start({ model, context, options: requestOptions }, cacheContextIsCurrent(model));
 			}
 			return modelRuntime.streamSimple(model, context, requestOptions);
@@ -430,7 +430,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		onPayload: transformProviderPayload,
 		onResponse: handleProviderResponse,
 		onProviderStreamEvent: handleProviderStreamEvent,
-		sessionId: sessionManager.getSessionId(),
+		sessionId: sessionManager.getCacheKey(),
 		transformContext: async (messages) => {
 			const runner = extensionRunnerRef.current;
 			if (!runner) return messages;

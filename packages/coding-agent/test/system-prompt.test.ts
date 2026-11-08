@@ -1,7 +1,12 @@
 import { describe, expect, test } from "vitest";
 import type { Skill } from "../src/core/skills.ts";
 import { createSyntheticSourceInfo } from "../src/core/source-info.ts";
-import { buildSystemPrompt, shouldIncludePiDocsSection } from "../src/core/system-prompt.ts";
+import {
+	buildSystemPrompt,
+	buildSystemPromptSections,
+	diffSystemPromptSections,
+	shouldIncludePiDocsSection,
+} from "../src/core/system-prompt.ts";
 
 const testSkill: Skill = {
 	name: "test-skill",
@@ -70,7 +75,7 @@ describe("buildSystemPrompt", () => {
 
 			expect(prompt).toContain("<addendum>\nAdditional instructions.\n</addendum>");
 			expect(prompt).toContain(
-				'<project_context>\nProject-specific instructions and guidelines:\n\n<project_instructions path="/tmp/AGENTS.md">',
+				'<project_context>\nProject-specific instructions and guidelines:\n\n<project_instructions path="AGENTS.md">',
 			);
 			expect(prompt).toContain("<cwd>\n/tmp\n</cwd>");
 		});
@@ -213,6 +218,28 @@ describe("buildSystemPrompt", () => {
 			expect(prompt).toContain(
 				"Resolve relative paths against the skill's directory (parent of SKILL.md). Use absolute paths in tool calls.",
 			);
+		});
+
+		test("moving to another checkout of the same files changes only the cwd section", () => {
+			const sectionsAt = (root: string) =>
+				buildSystemPromptSections({
+					selectedTools: ["read"],
+					contextFiles: [
+						{ path: "/home/u/.pi/agent/AGENTS.md", content: "global" },
+						{ path: `${root}/AGENTS.md`, content: "project" },
+					],
+					skills: [testSkill, { ...testSkill, name: "local", filePath: `${root}/.pi/skills/local.md` }],
+					cwd: root,
+				});
+			const before = sectionsAt("/work/repo");
+			const after = sectionsAt("/work/worktrees/feat");
+
+			expect(Object.keys(diffSystemPromptSections(before, after) ?? {})).toEqual(["cwd"]);
+			expect(after.project_context).toContain('<project_instructions path="AGENTS.md">');
+			expect(after.project_context).toContain('<project_instructions path="/home/u/.pi/agent/AGENTS.md">');
+			expect(after.skills).toContain("<location>.pi/skills/local.md</location>");
+			expect(after.skills).toContain("<location>/skills/test-skill/SKILL.md</location>");
+			expect(after.skills).toContain("Relative skill locations are relative to the working directory.");
 		});
 
 		test("omits skills without read or bash", () => {

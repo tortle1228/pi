@@ -56,7 +56,69 @@ describe("system message replay", () => {
 	test("collapse keeps only non-system messages after the replayed head", () => {
 		const collapsed = collapseSystemMessages(transcript);
 		expect(collapsed.messages.map((message) => message.role)).toEqual(["system", "user", "assistant"]);
+		expect(collapsed.messages[0]).toEqual(getCurrentSystemMessage(transcript.messages));
 		expect(collapseSystemMessages(collapsed)).toEqual(collapsed);
+	});
+
+	test("collapse keeps the head and sends a cwd-only change in place as a user message", () => {
+		const start = transcript.messages.slice(0, 2) as Message[];
+		const cwdUpdate: Message = { role: "system", content: "", sections: { cwd: "<cwd>/wt</cwd>" }, timestamp: 20 };
+		const before = collapseSystemMessages(normalizeContext({ messages: start }));
+		const after = collapseSystemMessages(
+			normalizeContext({ messages: [...start, cwdUpdate, { role: "user", content: "next", timestamp: 21 }] }),
+		);
+
+		expect(after.messages.slice(0, before.messages.length)).toEqual(before.messages);
+		expect(after.messages.slice(before.messages.length)).toEqual([
+			{
+				role: "user",
+				content: '<system_update>\nUpdated system prompt section "cwd":\n\n<cwd>/wt</cwd>\n</system_update>',
+				timestamp: 20,
+			},
+			{ role: "user", content: "next", timestamp: 21 },
+		]);
+		expect(collapseSystemMessages(after)).toEqual(after);
+	});
+
+	test("collapse folds other changes and the cwd changes before them into the head", () => {
+		const start = transcript.messages.slice(0, 2) as Message[];
+		const collapsed = collapseSystemMessages(
+			normalizeContext({
+				messages: [
+					...start,
+					{ role: "system", content: "", sections: { cwd: "<cwd>/wt</cwd>" }, timestamp: 20 },
+					{ role: "system", content: "", sections: { a: "<a>rule changed</a>" }, timestamp: 21 },
+					{ role: "system", content: "", sections: { cwd: "<cwd>/x</cwd>" }, timestamp: 22 },
+				],
+			}),
+		);
+
+		// The rule change stays system-level; only the cwd change after it is sent in place.
+		expect(collapsed.messages.map((message) => message.role)).toEqual(["system", "user", "user"]);
+		expect(collapsed.messages[0]).toMatchObject({
+			sections: { a: "<a>rule changed</a>", b: "<b>1</b>", cwd: "<cwd>/wt</cwd>" },
+		});
+		expect(collapsed.messages[2]).toMatchObject({ content: expect.stringContaining("<cwd>/x</cwd>") });
+
+		const withTools = collapseSystemMessages(
+			normalizeContext({
+				messages: [
+					...start,
+					{
+						role: "system",
+						content: "",
+						sections: { cwd: "<cwd>/x</cwd>" },
+						toolsAdded: [tool("t")],
+						timestamp: 20,
+					},
+				],
+			}),
+		);
+		expect(withTools.messages.map((message) => message.role)).toEqual(["system", "user"]);
+		expect(withTools.messages[0]).toMatchObject({
+			sections: { cwd: "<cwd>/x</cwd>" },
+			toolsAdded: [tool("first"), tool("t")],
+		});
 	});
 
 	test("replay of a transcript without system messages is empty", () => {

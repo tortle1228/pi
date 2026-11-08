@@ -1,5 +1,5 @@
 import type { Context, Message, SystemMessage, Tool, ToolReference, TranscriptContext } from "../types.ts";
-import { contentText, getSystemMessageText } from "./text.ts";
+import { contentText, getSystemMessageText, renderSystemMessageUpdate } from "./text.ts";
 
 export type { TranscriptContext } from "../types.ts";
 
@@ -102,12 +102,57 @@ export function getCurrentSystemPrompt(messages: TranscriptMessages): string {
 }
 
 /**
+ * Sections that only state a fact, so a change can reach the model as a user message without
+ * weakening an instruction. `cwd` is the coding agent's working directory, which a worktree move changes.
+ */
+const IN_PLACE_SECTIONS = new Set(["cwd"]);
+
+/** A later system message that changes only {@link IN_PLACE_SECTIONS}: no text and no tool changes. */
+function isInPlaceUpdate(message: SystemMessage): boolean {
+	const names = Object.keys(message.sections ?? {});
+	return (
+		names.length > 0 &&
+		names.every((name) => IN_PLACE_SECTIONS.has(name)) &&
+		contentText(message.content).length === 0 &&
+		!message.toolsAdded?.length &&
+		!message.toolsRemoved?.length
+	);
+}
+
+/**
  * Rebuild the transcript for APIs without mid-conversation system messages: the replayed
- * system message leads, and every later system message is dropped.
+ * system message leads, and later system messages are dropped. A change of only
+ * {@link IN_PLACE_SECTIONS} after every other change stays in place as a user message instead,
+ * so moving the working directory keeps the head and its cached prefix. Earlier ones fold into
+ * the head, which a later change replaces anyway. Without a leading system message, every
+ * system message replays into the head.
  */
 export function collapseSystemMessages(context: TranscriptContext): TranscriptContext {
-	const head = getCurrentSystemMessage(context.messages);
-	const messages = context.messages.filter((message) => message.role !== "system");
+	let lastFolded = -1;
+	if (getInitialSystemMessage(context.messages)) {
+		lastFolded = 0;
+		context.messages.forEach((message, index) => {
+			if (isSystemMessage(message) && !isInPlaceUpdate(message)) lastFolded = index;
+		});
+	}
+	const inPlace = (message: Message, index: number): message is SystemMessage =>
+		lastFolded >= 0 && index > lastFolded && isSystemMessage(message);
+	const head = getCurrentSystemMessage(
+		context.messages.filter((message, index) => isSystemMessage(message) && !inPlace(message, index)),
+	);
+	const messages: Message[] = [];
+	context.messages.forEach((message, index) => {
+		if (inPlace(message, index)) {
+			const update = renderSystemMessageUpdate(message);
+			messages.push({
+				role: "user",
+				content: `<system_update>\n${update}\n</system_update>`,
+				timestamp: message.timestamp,
+			});
+		} else if (!isSystemMessage(message)) {
+			messages.push(message);
+		}
+	});
 	return { messages: head ? [head, ...messages] : messages } as TranscriptContext;
 }
 

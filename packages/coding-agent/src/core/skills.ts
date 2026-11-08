@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import ignore from "ignore";
-import { basename, dirname, join, relative, resolve, sep } from "path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts";
 import { parseFrontmatter } from "../utils/frontmatter.ts";
 import { isPathWithin, resolvePath } from "../utils/paths.ts";
@@ -369,6 +369,9 @@ export function formatSkillsForPrompt(skills: Skill[], fileReadTool: "read" | "b
 			: fileReadTool === "bash"
 				? "Use bash to load a skill's file when the task matches its description."
 				: "Load a skill's file when the task matches its description.",
+		...(visibleSkills.some((skill) => !isAbsolute(skill.filePath))
+			? ["Relative skill locations are relative to the working directory."]
+			: []),
 		"Resolve relative paths against the skill's directory (parent of SKILL.md). Use absolute paths in tool calls.",
 		"",
 		"<available_skills>",
