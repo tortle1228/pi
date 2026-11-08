@@ -189,6 +189,29 @@ export function getCapabilities(): TerminalCapabilities {
 	return cachedCapabilities;
 }
 
+/** Herdr viewers do not retain uploads made before they attached to a terminal. */
+export function isHerdrTerminal(): boolean {
+	const term = process.env.TERM?.toLowerCase() ?? "";
+	if (
+		process.env.TMUX ||
+		process.env.ZELLIJ ||
+		process.env.STY ||
+		term.startsWith("tmux") ||
+		term.startsWith("screen")
+	) {
+		return false;
+	}
+	const termProgram = process.env.TERM_PROGRAM?.toLowerCase();
+	return (
+		termProgram === "herdr" ||
+		(termProgram === "ghostty" &&
+			term === "xterm-256color" &&
+			!!process.env.HC_TERMINAL_SOCKET &&
+			!!process.env.HC_TERMINAL_ID &&
+			!process.env.GHOSTTY_RESOURCES_DIR)
+	);
+}
+
 export function getTerminalColorMode(capabilities: TerminalCapabilities = getCapabilities()): TerminalColorMode {
 	return capabilities.trueColor ? "truecolor" : "256color";
 }

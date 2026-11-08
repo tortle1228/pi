@@ -4,12 +4,28 @@ import { loadPhoton } from "./photon.ts";
 
 type Photon = NonNullable<Awaited<ReturnType<typeof loadPhoton>>>;
 
-function encodePng(photon: Photon, bytes: Uint8Array): Uint8Array | null {
+function encodePng(photon: Photon, bytes: Uint8Array, maxDimension?: number): Uint8Array | null {
 	try {
 		const rawImage = photon.PhotonImage.new_from_byteslice(bytes);
 		const image = applyExifOrientation(photon, rawImage, bytes);
 		if (image !== rawImage) rawImage.free();
 		try {
+			const width = image.get_width();
+			const height = image.get_height();
+			if (maxDimension !== undefined && Math.max(width, height) > maxDimension) {
+				const scale = maxDimension / Math.max(width, height);
+				const resized = photon.resize(
+					image,
+					Math.max(1, Math.round(width * scale)),
+					Math.max(1, Math.round(height * scale)),
+					photon.SamplingFilter.Lanczos3,
+				);
+				try {
+					return new Uint8Array(resized.get_bytes());
+				} finally {
+					resized.free();
+				}
+			}
 			return new Uint8Array(image.get_bytes());
 		} finally {
 			image.free();
@@ -61,8 +77,8 @@ export async function convertToPng(
 export async function loadPngTranscoder(): Promise<ImageTranscoder | undefined> {
 	const photon = await loadPhoton();
 	if (!photon) return undefined;
-	return (base64Data) => {
-		const pngBytes = encodePng(photon, new Uint8Array(Buffer.from(base64Data, "base64")));
+	return (base64Data, _mimeType, maxDimension) => {
+		const pngBytes = encodePng(photon, new Uint8Array(Buffer.from(base64Data, "base64")), maxDimension);
 		return pngBytes ? Buffer.from(pngBytes).toString("base64") : null;
 	};
 }

@@ -117,6 +117,30 @@ it("loadPngTranscoder converts synchronously to oriented PNG data", async () => 
 	expect(transcoder(Buffer.from("not an image").toString("base64"), "image/jpeg")).toBeNull();
 });
 
+it.each([
+	[1536, 1024, 1024, 683],
+	[512, 1536, 341, 1024],
+])(
+	"bounds terminal previews of %ix%i images without changing unrestricted conversions",
+	async (width, height, previewWidth, previewHeight) => {
+		const transcoder = (await loadPngTranscoder())!;
+		const jpeg = Buffer.from(await photoLikeJpeg(width, height)).toString("base64");
+		const full = transcoder(jpeg, "image/jpeg")!;
+		for (const [data, mimeType] of [
+			[jpeg, "image/jpeg"],
+			[full, "image/png"],
+		]) {
+			const preview = Buffer.from(transcoder(data, mimeType, 1024)!, "base64");
+			expect([preview.readUInt32BE(16), preview.readUInt32BE(20)]).toEqual([previewWidth, previewHeight]);
+			expect(preview.byteLength).toBeLessThan(Buffer.from(full, "base64").byteLength);
+		}
+		const unchanged = Buffer.from(transcoder(jpeg, "image/jpeg")!, "base64");
+		expect([unchanged.readUInt32BE(16), unchanged.readUInt32BE(20)]).toEqual([width, height]);
+		const tiny = Buffer.from(transcoder(TINY_PNG, "image/png", 1024)!, "base64");
+		expect([tiny.readUInt32BE(16), tiny.readUInt32BE(20)]).toEqual([2, 2]);
+	},
+);
+
 describe("resizeImage", () => {
 	it("should keep caller input bytes intact", async () => {
 		const input = new Uint8Array(imageBytes(TINY_PNG));

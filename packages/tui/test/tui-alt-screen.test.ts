@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import {
 	AltScreenSearchComponent,
 	AltScreenSearchIndex,
@@ -8,7 +8,7 @@ import {
 import { Box } from "../src/components/box.ts";
 import { Editor } from "../src/components/editor.ts";
 import { HStack } from "../src/components/h-stack.ts";
-import { Image } from "../src/components/image.ts";
+import { Image, setImageTranscoder } from "../src/components/image.ts";
 import { MouseRegion } from "../src/components/mouse-region.ts";
 import { ScrollView } from "../src/components/scroll-view.ts";
 import { SelectList } from "../src/components/select-list.ts";
@@ -18,6 +18,7 @@ import { getKeybindings, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } f
 import {
 	encodeKitty,
 	hyperlink,
+	isHerdrTerminal,
 	registerKittyImageMetadata,
 	resetCapabilitiesCache,
 	setCapabilities,
@@ -65,6 +66,22 @@ class RecordingTerminal extends VirtualTerminal {
 }
 
 describe("TuiAltScreen", () => {
+	const environmentKeys = ["TERM_PROGRAM", "TERM", "TMUX", "ZELLIJ", "STY"];
+	let savedEnvironment: Map<string, string | undefined>;
+	beforeEach(() => {
+		savedEnvironment = new Map(environmentKeys.map((key) => [key, process.env[key]]));
+		for (const key of environmentKeys) delete process.env[key];
+		process.env.TERM_PROGRAM = "kitty";
+		process.env.TERM = "xterm-256color";
+	});
+	afterEach(() => {
+		for (const [key, value] of savedEnvironment) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+		resetCapabilitiesCache();
+	});
+
 	it("does not leak cursor markers while selecting after the caret", async () => {
 		const terminal = new RecordingTerminal(20, 4);
 		const tui = new TuiAltScreen(terminal, undefined, undefined, { copyOnSelect: false });
@@ -1213,6 +1230,153 @@ describe("TuiAltScreen", () => {
 		} finally {
 			tui?.stop();
 			resetCapabilitiesCache();
+		}
+	});
+
+	it("limits Herdr image retransmission to direct Herdr terminals, including legacy Ghostty identities", () => {
+		const keys = [
+			"TERM_PROGRAM",
+			"TERM",
+			"HC_TERMINAL_SOCKET",
+			"HC_TERMINAL_ID",
+			"GHOSTTY_RESOURCES_DIR",
+			"TMUX",
+			"ZELLIJ",
+			"STY",
+		];
+		const saved = new Map(keys.map((key) => [key, process.env[key]]));
+		const legacy = {
+			TERM_PROGRAM: "ghostty",
+			TERM: "xterm-256color",
+			HC_TERMINAL_SOCKET: "/tmp/herdr.sock",
+			HC_TERMINAL_ID: "t1",
+		};
+		const cases: Array<{ name: string; env: Record<string, string>; expected: boolean }> = [
+			{ name: "Herdr", env: { TERM_PROGRAM: "Herdr" }, expected: true },
+			{ name: "legacy Herdr", env: legacy, expected: true },
+			{ name: "missing terminal ID", env: { ...legacy, HC_TERMINAL_ID: "" }, expected: false },
+			{ name: "missing socket", env: { ...legacy, HC_TERMINAL_SOCKET: "" }, expected: false },
+			{ name: "native Ghostty TERM", env: { ...legacy, TERM: "xterm-ghostty" }, expected: false },
+			{
+				name: "native Ghostty resources",
+				env: { ...legacy, GHOSTTY_RESOURCES_DIR: "/opt/ghostty" },
+				expected: false,
+			},
+			{ name: "Kitty", env: { ...legacy, TERM_PROGRAM: "kitty" }, expected: false },
+			{ name: "WezTerm", env: { ...legacy, TERM_PROGRAM: "WezTerm" }, expected: false },
+			{ name: "VS Code", env: { ...legacy, TERM_PROGRAM: "vscode" }, expected: false },
+			{ name: "tmux", env: { ...legacy, TMUX: "/tmp/tmux/default,1,0" }, expected: false },
+			{ name: "tmux TERM", env: { ...legacy, TERM: "tmux-256color" }, expected: false },
+			{ name: "screen", env: { ...legacy, STY: "123.session" }, expected: false },
+			{ name: "screen TERM", env: { ...legacy, TERM: "screen-256color" }, expected: false },
+			{ name: "Zellij", env: { ...legacy, ZELLIJ: "0" }, expected: false },
+		];
+		try {
+			for (const { name, env, expected } of cases) {
+				for (const key of keys) delete process.env[key];
+				Object.assign(process.env, env);
+				assert.strictEqual(isHerdrTerminal(), expected, name);
+			}
+		} finally {
+			for (const [key, value] of saved) {
+				if (value === undefined) delete process.env[key];
+				else process.env[key] = value;
+			}
+		}
+	});
+
+	it("retransmits Herdr images after a viewer loses the original upload", async () => {
+		process.env.TERM_PROGRAM = "herdr";
+		setCapabilities({ images: "kitty", trueColor: true, hyperlinks: true });
+		const terminal = new RecordingTerminal(20, 4);
+		const tui = new TuiAltScreen(terminal);
+		const image = new Image(
+			"A".repeat(8192),
+			"image/png",
+			{ fallbackColor: (value) => value },
+			{ maxWidthCells: 2 },
+			{ widthPx: 100, heightPx: 100 },
+		);
+		let footer = "before";
+		tui.setLayoutRoot({ render: () => [...image.render(20), "", footer], invalidate: () => {} });
+		tui.start();
+		try {
+			await terminal.waitForRender();
+			const initialWrites = terminal.events
+				.filter((event) => event.type === "write")
+				.map((event) => event.data)
+				.join("");
+			assert.ok(initialWrites.includes("\x1b_Ga=T"));
+
+			// Herdr's new viewer did not receive the first upload; force the same viewport to repaint.
+			terminal.events.length = 0;
+			tui.renderNow(true);
+			const redraw = terminal.events
+				.filter((event) => event.type === "write")
+				.map((event) => event.data)
+				.join("");
+			assert.ok(redraw.includes("\x1b_Ga=T"), "a new Herdr viewer needs the image data, not only its ID");
+			assert.ok(!redraw.includes("\x1b_Ga=p"));
+			assert.strictEqual((redraw.match(/\x1b_Gm=0;/g) ?? []).length, 1);
+
+			terminal.events.length = 0;
+			footer = "after";
+			tui.requestRender();
+			await terminal.waitForRender();
+			assert.ok(terminal.events.every((event) => event.type !== "write" || !event.data.includes("\x1b_G")));
+			terminal.events.length = 0;
+			tui.requestRender();
+			await terminal.waitForRender();
+			assert.ok(terminal.events.every((event) => event.type !== "write" || !event.data.includes("\x1b_G")));
+
+			terminal.events.length = 0;
+			terminal.resize(21, 4);
+			await terminal.waitForRender();
+			assert.ok(terminal.events.some((event) => event.type === "write" && event.data.includes("\x1b_Ga=T")));
+		} finally {
+			tui.stop();
+		}
+	});
+
+	it("bounds Herdr PNG previews without sharing their resized cache with native terminals", () => {
+		const [large, preview] = [
+			[1536, 1024],
+			[1024, 683],
+		].map(([width, height]) => {
+			const header = Buffer.alloc(24);
+			header.writeUInt32BE(0x89504e47, 0);
+			header.writeUInt32BE(width, 16);
+			header.writeUInt32BE(height, 20);
+			return header.toString("base64");
+		});
+		const limits: Array<number | undefined> = [];
+		setCapabilities({ images: "kitty", trueColor: true, hyperlinks: true });
+		try {
+			process.env.TERM_PROGRAM = "herdr";
+			const image = new Image(large, "image/png", { fallbackColor: (s) => s });
+			for (const transcoder of [undefined, () => null]) {
+				setImageTranscoder(transcoder);
+				image.invalidate();
+				assert.ok(image.render(60).join("").includes(`;${large}\x1b\\`));
+				const jpeg = new Image(large, "image/jpeg", { fallbackColor: (s) => s });
+				assert.ok(jpeg.render(60).join("").includes("[Image:"));
+			}
+			setImageTranscoder((_data, _mimeType, maxDimension?: number) => {
+				limits.push(maxDimension);
+				return maxDimension === 1024 ? preview : large;
+			});
+			image.invalidate();
+			assert.ok(image.render(60).join("").includes(`;${preview}\x1b\\`));
+			image.invalidate();
+			image.render(40);
+			assert.deepStrictEqual(limits, [1024]);
+
+			process.env.TERM_PROGRAM = "kitty";
+			const native = new Image(large, "image/jpeg", { fallbackColor: (s) => s });
+			assert.ok(native.render(60).join("").includes(`;${large}\x1b\\`));
+			assert.deepStrictEqual(limits, [1024, undefined]);
+		} finally {
+			setImageTranscoder(undefined);
 		}
 	});
 

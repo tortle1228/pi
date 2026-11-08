@@ -12,6 +12,7 @@ import { createWriteToolDefinition } from "../src/core/tools/write.ts";
 import { ToolExecutionComponent } from "../src/modes/interactive/components/tool-execution.ts";
 import { initTheme, theme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
+import { loadPhoton } from "../src/utils/photon.ts";
 
 function createBaseToolDefinition(name = "custom_tool"): ToolDefinition {
 	return {
@@ -43,6 +44,29 @@ describe("ToolExecutionComponent parity", () => {
 	afterEach(() => {
 		resetCapabilitiesCache();
 		vi.useRealTimers();
+	});
+
+	test("loads the transcoder for large PNG previews in Herdr", async () => {
+		vi.stubEnv("TERM_PROGRAM", "herdr");
+		vi.stubEnv("TERM", "xterm-256color");
+		for (const key of ["TMUX", "ZELLIJ", "STY"]) vi.stubEnv(key, undefined);
+		setCapabilities({ images: "kitty", trueColor: true, hyperlinks: true });
+		const photon = (await loadPhoton())!;
+		const image = new photon.PhotonImage(new Uint8Array(1536 * 1024 * 4).fill(255), 1536, 1024);
+		try {
+			const data = Buffer.from(image.get_bytes()).toString("base64");
+			const component = new ToolExecutionComponent("tool", "png", {}, {}, undefined, createFakeTui(), process.cwd());
+			component.updateResult({ content: [{ type: "image", data, mimeType: "image/png" }], isError: false });
+			await vi.waitFor(() => {
+				const payload = /\x1b_Ga=T,[^;]*;([^\x1b]*)/.exec(component.render(120).join("\n"))?.[1];
+				expect(payload).toBeDefined();
+				const png = Buffer.from(payload!, "base64");
+				expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1024, 683]);
+			});
+		} finally {
+			image.free();
+			vi.unstubAllEnvs();
+		}
 	});
 
 	// Issue #10292: the component loads the PNG transcoder itself, so this works in any TUI host.

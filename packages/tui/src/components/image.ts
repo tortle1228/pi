@@ -6,6 +6,7 @@ import {
 	getPngDimensions,
 	type ImageDimensions,
 	imageFallback,
+	isHerdrTerminal,
 	renderImage,
 } from "../terminal-image.ts";
 import type { Component } from "../tui.ts";
@@ -13,9 +14,10 @@ import { truncateToWidth } from "../utils.ts";
 
 /**
  * Converts base64 image data to base64 PNG data, or returns null if it cannot.
+ * When supplied, maxDimension bounds the longest pixel edge without upscaling.
  * Called synchronously during rendering.
  */
-export type ImageTranscoder = (base64Data: string, mimeType: string) => string | null;
+export type ImageTranscoder = (base64Data: string, mimeType: string, maxDimension?: number) => string | null;
 
 let imageTranscoder: ImageTranscoder | undefined;
 // Backstop for callers that recreate Image instances. Keyed by source data, least recently used first.
@@ -30,12 +32,13 @@ export function setImageTranscoder(transcoder: ImageTranscoder | undefined): voi
 	pngCache.clear();
 }
 
-function toPng(base64Data: string, mimeType: string): string | null {
+function toPng(base64Data: string, mimeType: string, maxDimension?: number): string | null {
 	if (!imageTranscoder) return null;
-	const cached = pngCache.get(base64Data);
-	const png = cached === undefined ? imageTranscoder(base64Data, mimeType) : cached;
-	pngCache.delete(base64Data);
-	pngCache.set(base64Data, png);
+	const key = maxDimension === undefined ? base64Data : `${maxDimension}:${base64Data}`;
+	const cached = pngCache.get(key);
+	const png = cached === undefined ? imageTranscoder(base64Data, mimeType, maxDimension) : cached;
+	pngCache.delete(key);
+	pngCache.set(key, png);
 	if (pngCache.size > 32) pngCache.delete(pngCache.keys().next().value!);
 	return png;
 }
@@ -103,9 +106,15 @@ export class Image implements Component {
 		const caps = getCapabilities();
 		let data: string | null = this.base64Data;
 		let dimensions = this.dimensions;
-		if (caps.images === "kitty" && this.mimeType !== "image/png") {
-			this.pngData ??= toPng(this.base64Data, this.mimeType) ?? undefined;
-			data = this.pngData ?? null;
+		// shortcut: bound Herdr previews while large uploads are unreliable; remove when its viewer transport is fixed.
+		const maxDimension = caps.images === "kitty" && isHerdrTerminal() ? 1024 : undefined;
+		if (
+			caps.images === "kitty" &&
+			(this.mimeType !== "image/png" ||
+				(maxDimension !== undefined && Math.max(dimensions.widthPx, dimensions.heightPx) > maxDimension))
+		) {
+			this.pngData ??= toPng(this.base64Data, this.mimeType, maxDimension) ?? undefined;
+			data = this.pngData ?? (this.mimeType === "image/png" ? this.base64Data : null);
 			// Conversion may apply EXIF rotation, so prefer the PNG's own dimensions.
 			if (data) dimensions = getPngDimensions(data) ?? dimensions;
 		}

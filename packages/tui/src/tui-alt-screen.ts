@@ -27,6 +27,7 @@ import {
 	getKittyImagePlacement,
 	getKittyImagePlacementRows,
 	type ImageProtocol,
+	isHerdrTerminal,
 	isImageLine,
 	setCapabilities,
 	type TerminalCapabilities,
@@ -444,6 +445,8 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 	}
 
 	private prepareKittyScreen(screen: string[]): { lines: string[]; evictedImageDeletion: string } {
+		// shortcut: Herdr viewers miss earlier uploads; reuse IDs once viewer replay restores image data.
+		const reuseImageData = !isHerdrTerminal();
 		const visibleImageIds = new Set<number>();
 		const lines = screen.map((line) => {
 			const placement = getKittyImagePlacement(line);
@@ -459,7 +462,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 			if (cachedImage) this.uploadedKittyImages.delete(placement.imageId);
 			this.uploadedKittyImages.set(placement.imageId, nextCachedImage);
 
-			return cachedImage?.transmissionGeneration === placement.transmissionGeneration
+			return reuseImageData && cachedImage?.transmissionGeneration === placement.transmissionGeneration
 				? placement.replacementLine
 				: line;
 		});

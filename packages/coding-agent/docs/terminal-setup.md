@@ -66,6 +66,12 @@ This sends a raw linefeed, which Pi cannot distinguish from `Ctrl+J`. Remove the
 
 Links remain clickable in fullscreen mode, but Ghostty does not show its normal hover underline or URL preview while Pi captures mouse input. Hold `Shift+Command` on macOS or `Shift+Ctrl` on Linux to use Ghostty's native link handling.
 
+## Herdr
+
+Herdr viewers can miss images uploaded before they attach to a terminal, and large uploads can fail intermittently. Pi limits Herdr's terminal previews to a 1024-pixel longest edge. Original files and session images remain unchanged; previews may look softer on high-resolution displays. Other terminals keep their original preview resolution. If preview resizing is unavailable or fails, PNG images use their original resolution.
+
+In fullscreen mode, Pi retransmits image data when an image needs redrawing instead of relying on a previously uploaded image ID. Other terminals keep the smaller, placement-only redraws. If an image is blank after connecting or switching viewers, scroll it out of view and back to trigger a redraw. Unchanged images are not retransmitted during unrelated text updates.
+
 ## WezTerm
 
 WezTerm normally reports `Shift+Enter` through xterm extended keys. To enable the Kitty keyboard protocol explicitly, create `~/.wezterm.lua`:

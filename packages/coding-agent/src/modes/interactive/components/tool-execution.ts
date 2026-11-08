@@ -382,12 +382,10 @@ export class ToolExecutionComponent extends Container {
 									{ fallbackColor: (s: string) => theme.fg("toolOutput", s) },
 									{ maxWidthCells: source.widthCells },
 								);
-					if (source.mimeType !== "image/png") {
-						ensurePngTranscoder(() => {
-							this.invalidate();
-							this.ui.requestRender();
-						});
-					}
+					ensurePngTranscoder(() => {
+						this.invalidate();
+						this.ui.requestRender();
+					});
 					this.imageComponents.push(imageComponent);
 					this.imageSources.push(source);
 					this.addChild(imageComponent);
