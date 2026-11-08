@@ -2,6 +2,7 @@
 import type { ExtensionContext } from "../../core/extensions/types.ts";
 import { SETTINGS_DEFAULTS } from "../../core/settings-defaults.ts";
 import { searchAnthropic } from "./anthropic.ts";
+import { isGeminiModel, searchAntigravity } from "./antigravity.ts";
 import { extractExa, searchExa } from "./exa.ts";
 import { extractFirecrawl, searchFirecrawl } from "./firecrawl.ts";
 import { searchOpenAI, searchX, searchXai } from "./openai.ts";
@@ -28,6 +29,7 @@ const backends: Readonly<Record<string, SearchBackend>> = {
 	openai: { search: searchOpenAI },
 	"openai-codex": { search: searchOpenAI },
 	anthropic: { search: searchAnthropic },
+	"google-antigravity": { search: searchAntigravity },
 	xai: { search: searchXai },
 };
 
@@ -35,8 +37,9 @@ const xBackends: Readonly<Record<string, SearchBackend>> = {
 	xai: { search: searchX },
 };
 
-/** Select a search backend by provider ID, never by model name or URL. */
-export function getSearchBackend(provider: string | undefined): SearchBackend | undefined {
+/** Select a search backend by provider ID, never by URL. Antigravity also needs a Gemini model. */
+export function getSearchBackend(provider: string | undefined, modelId?: string): SearchBackend | undefined {
+	if (provider === "google-antigravity" && !isGeminiModel(modelId)) return undefined;
 	return provider === undefined || !Object.hasOwn(backends, provider) ? undefined : backends[provider];
 }
 
@@ -138,9 +141,10 @@ export function resolveWebSearch(
 	provider: string | undefined,
 	order: readonly string[] | undefined,
 	auth: SearchAuth,
+	modelId?: string,
 ): SearchBackend | undefined {
 	const available = webSearchOrder(order).some((id) => {
-		if (id === "native") return getSearchBackend(provider) !== undefined;
+		if (id === "native") return getSearchBackend(provider, modelId) !== undefined;
 		return configured(auth, id);
 	});
 	if (!available) return undefined;
@@ -149,7 +153,7 @@ export function resolveWebSearch(
 			const attempts: Attempt<SearchResult>[] = [];
 			for (const id of webSearchOrder(order)) {
 				if (id === "native") {
-					const native = getSearchBackend(provider);
+					const native = getSearchBackend(provider, modelId);
 					if (!native) continue;
 					attempts.push({
 						name: provider ?? "native",

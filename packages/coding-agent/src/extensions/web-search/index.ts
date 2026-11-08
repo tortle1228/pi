@@ -127,7 +127,7 @@ export default function webSearch(pi: ExtensionAPI): void {
 					const order = pi.getSettings().webSearch?.order;
 					const backend =
 						tool.name === "web_search"
-							? resolveWebSearch(ctx.model?.provider, order, ctx.modelRegistry)
+							? resolveWebSearch(ctx.model?.provider, order, ctx.modelRegistry, ctx.model?.id)
 							: tool.resolve(ctx.model?.provider);
 					if (!backend)
 						throw new Error(
@@ -243,7 +243,7 @@ export default function webSearch(pi: ExtensionAPI): void {
 		for (const tool of searchTools) {
 			const supported =
 				(tool.name === "web_search"
-					? resolveWebSearch(ctx.model?.provider, order, auth)
+					? resolveWebSearch(ctx.model?.provider, order, auth, ctx.model?.id)
 					: tool.resolve(ctx.model?.provider)) !== undefined && !optedOut(tool.name);
 			if (supported && !active.includes(tool.name)) {
 				active = [...active, tool.name];

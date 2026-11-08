@@ -127,6 +127,12 @@ describe("provider-aware web_search", () => {
 		expect(h.active()).toEqual(["read", "bash"]);
 	});
 
+	it("selects native search for google-antigravity only on Gemini models", () => {
+		expect(getSearchBackend("google-antigravity", "gemini-3-flash")).toBeDefined();
+		expect(getSearchBackend("google-antigravity", "claude-sonnet-4-6")).toBeUndefined();
+		expect(getSearchBackend("google-antigravity")).toBeUndefined();
+	});
+
 	it("activates x_search only for xai and drops it when the provider changes", () => {
 		const h = harness();
 		h.emit("model_select", context("xai"));
