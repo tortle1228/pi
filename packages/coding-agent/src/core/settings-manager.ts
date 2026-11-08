@@ -1476,6 +1476,16 @@ export class SettingsManager {
 		this.save();
 	}
 
+	getMaxProseWidth(): number {
+		return this.settings.maxProseWidth ?? SETTINGS_DEFAULTS.maxProseWidth;
+	}
+
+	setMaxProseWidth(width: number): void {
+		this.globalSettings.maxProseWidth = Math.max(0, Math.floor(width));
+		this.markModified("maxProseWidth");
+		this.save();
+	}
+
 	getAutocompleteMaxVisible(): number {
 		return this.settings.autocompleteMaxVisible ?? SETTINGS_DEFAULTS.autocompleteMaxVisible;
 	}

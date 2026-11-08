@@ -46,7 +46,7 @@ describe("AssistantMessageComponent", () => {
 			{ type: "thinking", thinking: "Thinking with **bold** text" },
 			{ type: "text", text },
 		];
-		const component = new AssistantMessageComponent(undefined, false, undefined, "Thinking...", 1, [
+		const component = new AssistantMessageComponent(undefined, false, undefined, "Thinking...", 1, 0, [
 			(markdown, { isStreaming }) => {
 				streaming.push(isStreaming);
 				return markdown;
@@ -229,7 +229,7 @@ describe("AssistantMessageComponent", () => {
 		initTheme("dark");
 		const calls: string[] = [];
 		const message = createAssistantMessage([{ type: "text", text: "The result is $x^2$." }]);
-		const component = new AssistantMessageComponent(message, false, undefined, "Thinking...", 1, [
+		const component = new AssistantMessageComponent(message, false, undefined, "Thinking...", 1, 0, [
 			(markdown, context) => {
 				calls.push("formula");
 				expect(context).toEqual({ messageType: "assistant", isStreaming: false, availableWidth: 78 });
@@ -245,11 +245,32 @@ describe("AssistantMessageComponent", () => {
 		expect(calls).toEqual(["formula", "suffix"]);
 	});
 
+	test("caps prose width in assistant text and thinking", () => {
+		initTheme("dark");
+		const longText = "word ".repeat(60).trim();
+		const message = createAssistantMessage([
+			{ type: "thinking", thinking: longText },
+			{ type: "text", text: longText },
+		]);
+		const component = new AssistantMessageComponent(message, false, undefined, "Thinking...", 0, 80);
+
+		const lines = component.render(200).map((line) => stripAnsi(line));
+
+		expect(lines.length).toBeGreaterThan(2);
+		for (const line of lines) {
+			// Empty spacer lines render as ""; every other line is padded to the full width.
+			if (line !== "") {
+				expect(line.length).toBe(200);
+				expect(line.trimEnd().length).toBeLessThanOrEqual(80);
+			}
+		}
+	});
+
 	test("identifies partial assistant Markdown as streaming", () => {
 		initTheme("dark");
 		const streamingStates: boolean[] = [];
 		const message = createAssistantMessage([{ type: "text", text: "partial" }]);
-		const component = new AssistantMessageComponent(undefined, false, undefined, "Thinking...", 1, [
+		const component = new AssistantMessageComponent(undefined, false, undefined, "Thinking...", 1, 0, [
 			(markdown, context) => {
 				streamingStates.push(context.isStreaming);
 				return context.isStreaming ? markdown : `${markdown} transformed`;
@@ -273,6 +294,7 @@ describe("AssistantMessageComponent", () => {
 			undefined,
 			"Thinking...",
 			1,
+			0,
 			[
 				(markdown, context) => {
 					availableWidths.push(context.availableWidth);
@@ -296,6 +318,7 @@ describe("AssistantMessageComponent", () => {
 			undefined,
 			"Thinking...",
 			1,
+			0,
 			[
 				(markdown) => {
 					calls.push("first");
@@ -322,7 +345,7 @@ describe("AssistantMessageComponent", () => {
 			{ type: "text", text: "answer" },
 			{ type: "thinking", thinking: "reasoning" },
 		]);
-		const component = new AssistantMessageComponent(message, false, undefined, "Thinking...", 1, [
+		const component = new AssistantMessageComponent(message, false, undefined, "Thinking...", 1, 0, [
 			(markdown, { messageType }) => {
 				return `${messageType}:${markdown}`;
 			},

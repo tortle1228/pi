@@ -577,6 +577,29 @@ describe("SettingsManager", () => {
 		});
 	});
 
+	describe("maxProseWidth", () => {
+		it("should default to 0 and persist the cap", async () => {
+			const manager = SettingsManager.create(projectDir, agentDir);
+
+			expect(manager.getMaxProseWidth()).toBe(0);
+
+			manager.setMaxProseWidth(80);
+			await manager.flush();
+
+			expect(manager.getMaxProseWidth()).toBe(80);
+			const savedSettings = JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf-8"));
+			expect(savedSettings.maxProseWidth).toBe(80);
+		});
+
+		it("should read the cap from saved settings", () => {
+			writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ maxProseWidth: 100 }));
+
+			const manager = SettingsManager.create(projectDir, agentDir);
+
+			expect(manager.getMaxProseWidth()).toBe(100);
+		});
+	});
+
 	describe("markdown.mermaid", () => {
 		it("defaults to streaming and persists rendering modes", async () => {
 			const manager = SettingsManager.create(projectDir, agentDir);

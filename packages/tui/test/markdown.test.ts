@@ -2058,4 +2058,65 @@ bar`,
 			assert.strictEqual(partial.render(80).length, complete.render(80).length);
 		});
 	});
+
+	describe("Max prose width", () => {
+		const paragraph = "word ".repeat(60).trim();
+
+		it("wraps prose at the cap and pads lines to the full width", () => {
+			const markdown = new Markdown(paragraph, 0, 0, defaultMarkdownTheme, undefined, {
+				maxProseWidth: 80,
+			});
+
+			const lines = markdown.render(200);
+
+			assert.ok(lines.length > 1);
+			for (const line of lines) {
+				assert.strictEqual(stripAnsi(line).length, 200); // padded to full width
+				assert.ok(stripAnsi(line).trimEnd().length <= 80); // prose wrapped at the cap
+			}
+		});
+
+		it("keeps code blocks at the full width", () => {
+			const code = "x".repeat(150);
+			const markdown = new Markdown(
+				`\`${code}\`\n\n\`\`\`\n${code}\n\`\`\``,
+				0,
+				0,
+				defaultMarkdownTheme,
+				undefined,
+				{
+					maxProseWidth: 80,
+				},
+			);
+
+			const lines = markdown.render(200).map((line) => stripAnsi(line).trimEnd());
+
+			// The code block line stays unwrapped beyond the cap; the codespan paragraph wraps.
+			assert.ok(lines.some((line) => line.length > 80 && line.includes(code)));
+		});
+
+		it("keeps tables at the full width", () => {
+			const cell = "c".repeat(40);
+			const table = `| ${cell} | ${cell} | ${cell} |\n| --- | --- | --- |\n| ${cell} | ${cell} | ${cell} |`;
+			const markdown = new Markdown(table, 0, 0, defaultMarkdownTheme, undefined, {
+				maxProseWidth: 80,
+			});
+
+			const lines = markdown.render(200).map((line) => stripAnsi(line).trimEnd());
+
+			assert.ok(lines.some((line) => line.length > 80));
+		});
+
+		it("ignores values below 40 and applies no cap when unset", () => {
+			const uncapped = new Markdown(paragraph, 0, 0, defaultMarkdownTheme)
+				.render(200)
+				.map((line) => stripAnsi(line));
+			const belowMinimum = new Markdown(paragraph, 0, 0, defaultMarkdownTheme, undefined, {
+				maxProseWidth: 20,
+			}).render(200);
+
+			assert.deepStrictEqual(belowMinimum, uncapped);
+			assert.ok(uncapped.some((line) => stripAnsi(line).trimEnd().length > 80));
+		});
+	});
 });

@@ -535,6 +535,7 @@ export class InteractiveMode {
 	// Thinking block visibility state
 	private hideThinkingBlock = false;
 	private outputPad = 1;
+	private maxProseWidth = 0;
 	private readonly mermaidMarkdownTransformer: MarkdownTransformer = createMermaidMarkdownTransformer({
 		getMode: () => this.settingsManager.getMermaidRenderingMode(),
 		theme,
@@ -690,6 +691,7 @@ export class InteractiveMode {
 		// Load hide thinking block setting
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
 		this.outputPad = this.settingsManager.getOutputPad();
+		this.maxProseWidth = this.settingsManager.getMaxProseWidth();
 
 		// Register themes from resource loader and initialize
 		setRegisteredThemes(this.session.resourceLoader.getThemes().themes);
@@ -3606,6 +3608,7 @@ export class InteractiveMode {
 						this.getMarkdownThemeWithSettings(),
 						this.hiddenThinkingLabel,
 						this.outputPad,
+						this.maxProseWidth,
 						this.getMarkdownTransformers(),
 					);
 					this.streamingMessage = event.message;
@@ -4101,6 +4104,7 @@ export class InteractiveMode {
 					this.getMarkdownThemeWithSettings(),
 					this.hiddenThinkingLabel,
 					this.outputPad,
+					this.maxProseWidth,
 					this.getMarkdownTransformers(),
 					options?.messageId,
 					options?.timestamp,
@@ -5119,6 +5123,7 @@ export class InteractiveMode {
 					defaultProjectTrust: this.settingsManager.getDefaultProjectTrust(),
 					editorPaddingX: this.settingsManager.getEditorPaddingX(),
 					outputPad: this.settingsManager.getOutputPad(),
+					maxProseWidth: this.settingsManager.getMaxProseWidth(),
 					autocompleteMaxVisible: this.settingsManager.getAutocompleteMaxVisible(),
 					quietStartup: this.settingsManager.getQuietStartup(),
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
@@ -5262,6 +5267,18 @@ export class InteractiveMode {
 							for (const child of container.children) {
 								if ("setOutputPad" in child && typeof child.setOutputPad === "function") {
 									child.setOutputPad(padding);
+								}
+							}
+						}
+						this.ui.requestRender();
+					},
+					onMaxProseWidthChange: (width) => {
+						this.settingsManager.setMaxProseWidth(width);
+						this.maxProseWidth = width;
+						for (const container of [this.chatContainer, this.pendingMessagesContainer]) {
+							for (const child of container.children) {
+								if ("setMaxProseWidth" in child && typeof child.setMaxProseWidth === "function") {
+									child.setMaxProseWidth(width);
 								}
 							}
 						}

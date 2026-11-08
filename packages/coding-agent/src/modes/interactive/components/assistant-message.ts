@@ -34,6 +34,7 @@ export class AssistantMessageComponent extends Container {
 	private markdownTheme: MarkdownTheme;
 	private hiddenThinkingLabel: string;
 	private outputPad: number;
+	private maxProseWidth: number;
 	private markdownTransformers: readonly MarkdownTransformer[];
 	private lastMessage?: AssistantMessage;
 	private hasToolCalls = false;
@@ -49,6 +50,7 @@ export class AssistantMessageComponent extends Container {
 		markdownTheme: MarkdownTheme = getMarkdownTheme(),
 		hiddenThinkingLabel = "Thinking...",
 		outputPad = 1,
+		maxProseWidth = 0,
 		markdownTransformers: readonly MarkdownTransformer[] = [],
 		messageId?: string,
 		timestamp?: string,
@@ -59,6 +61,7 @@ export class AssistantMessageComponent extends Container {
 		this.markdownTheme = markdownTheme;
 		this.hiddenThinkingLabel = hiddenThinkingLabel;
 		this.outputPad = outputPad;
+		this.maxProseWidth = maxProseWidth;
 		this.markdownTransformers = markdownTransformers;
 		this.messageId = messageId;
 		this.timestamp = timestamp;
@@ -97,6 +100,15 @@ export class AssistantMessageComponent extends Container {
 	setOutputPad(padding: number): void {
 		this.outputPad = padding;
 		// Markdown takes its padding at construction.
+		this.markdownSlots = [];
+		if (this.lastMessage) {
+			this.updateContent(this.lastMessage);
+		}
+	}
+
+	setMaxProseWidth(width: number): void {
+		this.maxProseWidth = width;
+		// Markdown takes its prose width at construction.
 		this.markdownSlots = [];
 		if (this.lastMessage) {
 			this.updateContent(this.lastMessage);
@@ -156,6 +168,7 @@ export class AssistantMessageComponent extends Container {
 						text,
 						() =>
 							new Markdown(text, this.outputPad, 0, this.markdownTheme, undefined, {
+								maxProseWidth: this.maxProseWidth || undefined,
 								transform: createMarkdownTransform(
 									"assistant",
 									() => this.isStreaming,
@@ -207,6 +220,7 @@ export class AssistantMessageComponent extends Container {
 										italic: true,
 									},
 									{
+										maxProseWidth: this.maxProseWidth || undefined,
 										transform: createMarkdownTransform(
 											"assistant-thinking",
 											() => this.isStreaming,

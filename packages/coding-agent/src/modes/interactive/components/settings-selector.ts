@@ -93,6 +93,7 @@ export interface SettingsConfig {
 	showHardwareCursor: boolean;
 	editorPaddingX: number;
 	outputPad: 0 | 1;
+	maxProseWidth: number;
 	autocompleteMaxVisible: number;
 	quietStartup: QuietStartup;
 	defaultProjectTrust: DefaultProjectTrust;
@@ -134,6 +135,7 @@ export interface SettingsCallbacks {
 	onShowHardwareCursorChange: (enabled: boolean) => void;
 	onEditorPaddingXChange: (padding: number) => void;
 	onOutputPadChange: (padding: 0 | 1) => void;
+	onMaxProseWidthChange: (width: number) => void;
 	onAutocompleteMaxVisibleChange: (maxVisible: number) => void;
 	onQuietStartupChange: (quiet: QuietStartup) => void;
 	onDefaultProjectTrustChange: (defaultProjectTrust: DefaultProjectTrust) => void;
@@ -857,6 +859,15 @@ export class SettingsSelectorComponent extends Container {
 			values: ["0", "1"],
 		});
 
+		// Max prose width toggle (insert after output-padding)
+		items.splice(editorPaddingIndex + 2, 0, {
+			id: "max-prose-width",
+			label: "Max prose width",
+			description: "Wrap assistant response prose at this width; code blocks and tables keep full width",
+			currentValue: config.maxProseWidth === 0 ? "off" : String(config.maxProseWidth),
+			values: ["off", "80", "100", "120"],
+		});
+
 		// Autocomplete max visible toggle (insert after output-padding)
 		const outputPaddingIndex = items.findIndex((item) => item.id === "output-padding");
 		items.splice(outputPaddingIndex + 1, 0, {
@@ -980,6 +991,9 @@ export class SettingsSelectorComponent extends Container {
 						break;
 					case "output-padding":
 						callbacks.onOutputPadChange(newValue === "0" ? 0 : 1);
+						break;
+					case "max-prose-width":
+						callbacks.onMaxProseWidthChange(newValue === "off" ? 0 : parseInt(newValue, 10));
 						break;
 					case "autocomplete-max-visible":
 						callbacks.onAutocompleteMaxVisibleChange(parseInt(newValue, 10));

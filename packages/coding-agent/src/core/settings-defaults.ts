@@ -50,6 +50,7 @@ export const SETTINGS_DEFAULTS = {
 	treeFilterMode: "default",
 	editorPaddingX: 0,
 	outputPad: 1,
+	maxProseWidth: 0,
 	autocompleteMaxVisible: 5,
 	markdown: {
 		codeBlockIndent: "  ",

@@ -464,6 +464,12 @@ export const SettingsSchema = Type.Object(
 				default: SETTINGS_DEFAULTS.outputPad,
 			}),
 		),
+		maxProseWidth: Type.Optional(
+			Type.Number({
+				description: "Maximum width in terminal columns for prose in assistant responses; 0 disables the cap.",
+				default: SETTINGS_DEFAULTS.maxProseWidth,
+			}),
+		),
 		autocompleteMaxVisible: Type.Optional(
 			Type.Number({
 				description: "Maximum visible items in the autocomplete dropdown.",

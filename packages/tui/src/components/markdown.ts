@@ -287,6 +287,11 @@ export interface MarkdownOptions {
 	preserveBackslashEscapes?: boolean;
 	/** Transform source Markdown before parsing, with the exact width available for content. */
 	transform?: (markdown: string, availableWidth: number) => string;
+	/**
+	 * Cap the width prose blocks (paragraphs, headings, lists, quotes) wrap at, so text gathers on the left in a
+	 * wide terminal. Code blocks and tables keep the full width. Values below 40 are ignored.
+	 */
+	maxProseWidth?: number;
 	/** Render supported LaTeX math expressions as Unicode text (default: true). */
 	renderLatex?: boolean;
 }
@@ -373,6 +378,8 @@ export class Markdown implements Component {
 
 		// Calculate available width for content (subtract horizontal padding)
 		const contentWidth = Math.max(1, width - this.paddingX * 2);
+		const maxProseWidth = this.options.maxProseWidth ?? 0;
+		const proseWidth = maxProseWidth >= 40 ? Math.min(contentWidth, maxProseWidth) : contentWidth;
 		const text = this.options.transform?.(this.text, contentWidth) ?? this.text;
 
 		// Don't render anything if there's no actual text
@@ -412,7 +419,7 @@ export class Markdown implements Component {
 			const reused = reuseBlocks ? (blocks.get(token.raw) ?? previousBlocks?.get(token.raw)) : undefined;
 			const block = reused ?? { width: -1, nextTokenType, lines: [], highlightedCode: new Map() };
 			if (block.width !== width || block.nextTokenType !== nextTokenType) {
-				this.renderBlock(block, token, nextTokenType, width, contentWidth);
+				this.renderBlock(block, token, nextTokenType, width, contentWidth, proseWidth);
 			}
 			if (reuseBlocks) blocks.set(token.raw, block);
 			for (const line of block.lines) {
@@ -448,18 +455,20 @@ export class Markdown implements Component {
 		nextTokenType: string | undefined,
 		width: number,
 		contentWidth: number,
+		proseWidth: number,
 	): void {
 		this.blockHighlightedCode = block.highlightedCode;
 		const leftMargin = " ".repeat(this.paddingX);
 		const rightMargin = " ".repeat(this.paddingX);
 		const bgFn = this.defaultTextStyle?.bgColor;
 		const lines: string[] = [];
-		for (const line of this.renderToken(token, contentWidth, nextTokenType)) {
+		const blockWidth = token.type === "code" || token.type === "table" ? contentWidth : proseWidth;
+		for (const line of this.renderToken(token, blockWidth, nextTokenType)) {
 			if (isImageLine(line)) {
 				lines.push(line);
 				continue;
 			}
-			for (const wrappedLine of wrapTextWithAnsi(line, contentWidth)) {
+			for (const wrappedLine of wrapTextWithAnsi(line, blockWidth)) {
 				const lineWithMargins = leftMargin + wrappedLine + rightMargin;
 				if (bgFn) {
 					lines.push(applyBackgroundToLine(lineWithMargins, width, bgFn));
