@@ -53,6 +53,26 @@ describe("system prompt updates", () => {
 		}
 	});
 
+	test("omits the docs section for Anthropic subscription OAuth", async () => {
+		const harness = await createHarness({ provider: "anthropic" });
+		try {
+			await harness.authStorage.modify("anthropic", async () => ({
+				type: "oauth",
+				access: "access",
+				refresh: "refresh",
+				expires: Date.now() + 60_000,
+			}));
+			await harness.session.modelRuntime.refresh({ allowNetwork: false });
+			harness.setResponses([fauxAssistantMessage("first")]);
+			await harness.session.prompt("one");
+			const head = getCurrentSystemMessage(harness.session.messages);
+			if (!head) throw new Error("expected system message");
+			expect(Object.keys(head.sections ?? {})).not.toContain("docs");
+		} finally {
+			harness.cleanup();
+		}
+	});
+
 	// #11495
 	test("does not patch the prompt when the active tools are only reordered", async () => {
 		const harness = await createHarness();

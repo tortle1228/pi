@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Skill } from "../src/core/skills.ts";
 import { createSyntheticSourceInfo } from "../src/core/source-info.ts";
-import { buildSystemPrompt } from "../src/core/system-prompt.ts";
+import { buildSystemPrompt, shouldIncludePiDocsSection } from "../src/core/system-prompt.ts";
 
 const testSkill: Skill = {
 	name: "test-skill",
@@ -125,6 +125,19 @@ describe("buildSystemPrompt", () => {
 				"Before implementing harness changes, read the relevant docs and examples in full, following related cross-references.",
 			);
 		});
+
+		test("omits the docs section when includeDocsSection is false", () => {
+			const prompt = buildSystemPrompt({
+				includeDocsSection: false,
+				contextFiles: [],
+				skills: [],
+				cwd: process.cwd(),
+			});
+
+			expect(prompt).not.toContain("<docs>");
+			expect(prompt).not.toContain("Pi documentation");
+			expect(prompt).toContain("<rules>");
+		});
 	});
 
 	describe("custom tool snippets", () => {
@@ -242,5 +255,14 @@ describe("buildSystemPrompt", () => {
 			expect(build(["read"])).toContain("Use bash to load a skill's file");
 			expect(build([])).toContain("Use the read tool to load a skill's file");
 		});
+	});
+});
+
+describe("shouldIncludePiDocsSection", () => {
+	test("omits the docs section only for Anthropic subscription auth", () => {
+		expect(shouldIncludePiDocsSection("anthropic", true)).toBe(false);
+		expect(shouldIncludePiDocsSection("anthropic", false)).toBe(true);
+		expect(shouldIncludePiDocsSection("openai-codex", true)).toBe(true);
+		expect(shouldIncludePiDocsSection(undefined, false)).toBe(true);
 	});
 });

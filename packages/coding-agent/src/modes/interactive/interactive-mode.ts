@@ -117,6 +117,7 @@ import {
 import type { FullscreenExitOutput, TuiMode } from "../../core/settings-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import { getSourcePackageKey, type SourceInfo } from "../../core/source-info.ts";
+import { shouldIncludePiDocsSection } from "../../core/system-prompt.ts";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.ts";
 import { withBuiltInRenderers } from "../../core/tools/renderers/index.ts";
 import type { TruncationResult } from "../../core/tools/truncate.ts";
@@ -5508,6 +5509,10 @@ export class InteractiveMode {
 			return;
 		}
 		if (!model || model.provider !== "anthropic") {
+			return;
+		}
+		// The subscription plan is used once the Pi docs section is left out.
+		if (!shouldIncludePiDocsSection(model.provider, this.session.modelRuntime.isUsingSubscription(model.provider))) {
 			return;
 		}
 

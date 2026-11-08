@@ -148,6 +148,7 @@ import {
 	diffSystemPromptSections,
 	type NormalizedBuildSystemPromptOptions,
 	normalizeBuildSystemPromptOptions,
+	shouldIncludePiDocsSection,
 } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
@@ -1751,6 +1752,18 @@ export class AgentSession {
 		return Array.from(unique);
 	}
 
+	/**
+	 * Pi's docs prompt section is what Anthropic treats as a third-party marker for subscription
+	 * auth, so it is left out only when the active model uses that plan.
+	 */
+	private _includesPiDocsSection(): boolean {
+		const activeModel = this.model;
+		return shouldIncludePiDocsSection(
+			activeModel?.provider,
+			activeModel ? this._modelRuntime.isUsingSubscription(activeModel.provider) : false,
+		);
+	}
+
 	private _rebuildSystemPrompt(toolNames: string[]): void {
 		const validToolNames = toolNames.filter((name) => this._toolRegistry.has(name));
 		const toolSnippets: Record<string, string> = {};
@@ -1772,6 +1785,7 @@ export class AgentSession {
 			contextFiles: loadedContextFiles,
 			customPrompt: loaderSystemPrompt,
 			appendSystemPrompt,
+			includeDocsSection: this._includesPiDocsSection(),
 			selectedTools: validToolNames,
 			hiddenTools: [...this._hiddenDeclarations],
 			toolSnippets,
@@ -1796,6 +1810,8 @@ export class AgentSession {
 		options.selectedTools = this._applyToolLoadout(options.selectedTools).map((tool) => tool.name);
 		// The tool list and rules must match the declarations the request carries.
 		options.hiddenTools = [...this._hiddenDeclarations];
+		// Per request, so a model or sign-in change updates the sections through the diff below.
+		options.includeDocsSection = this._includesPiDocsSection();
 		const sections = diffSystemPromptSections(
 			getCurrentSystemMessage(messages)?.sections ?? {},
 			buildSystemPromptSections(options),

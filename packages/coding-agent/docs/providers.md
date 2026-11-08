@@ -11,6 +11,8 @@ Use `/login [provider]` to see the methods supported by a provider. Amazon Bedro
 
 Run `/login` and select a provider. Pi guides you through its OAuth or API-key flow and saves the resulting credential in [`auth.json`](configuration.md#agent-directory).
 
+With Anthropic subscription (OAuth) auth, Pi leaves its documentation section out of the system prompt, so requests draw from the Claude plan limits instead of extra usage.
+
 On a remote or headless machine, an OAuth callback may not reach the local process. When prompted, paste the final redirect URL or authorization code back into Pi.
 
 Run `/logout` and select a provider to remove its stored credential. This does not unset environment variables, remove authentication from `models.json`, or revoke the credential at the provider.

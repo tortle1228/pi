@@ -7,10 +7,11 @@ function createSettingsManager(warnings: { anthropicExtraUsage?: boolean } = {})
 	};
 }
 
-function createModelRuntime(credential: { type: "oauth" } | undefined, apiKey?: string) {
+function createModelRuntime(credential: { type: "oauth" } | undefined, apiKey?: string, subscription = false) {
 	return {
 		checkAuth: vi.fn().mockResolvedValue(credential),
 		getAuth: vi.fn().mockResolvedValue(apiKey ? { auth: { apiKey } } : undefined),
+		isUsingSubscription: vi.fn().mockReturnValue(subscription),
 	};
 }
 
@@ -35,8 +36,8 @@ describe("InteractiveMode.maybeWarnAboutAnthropicSubscriptionAuth", () => {
 		expect(modelRuntime.getAuth).toHaveBeenCalledTimes(1);
 	});
 
-	test("warns when Anthropic OAuth is stored even if token refresh lookup would fail", async () => {
-		const modelRuntime = createModelRuntime({ type: "oauth" });
+	test("does not warn when Anthropic subscription OAuth leaves out the Pi docs section", async () => {
+		const modelRuntime = createModelRuntime({ type: "oauth" }, undefined, true);
 		const fakeThis: any = {
 			anthropicSubscriptionWarningShown: false,
 			settingsManager: createSettingsManager(),
@@ -48,7 +49,8 @@ describe("InteractiveMode.maybeWarnAboutAnthropicSubscriptionAuth", () => {
 			provider: "anthropic",
 		});
 
-		expect(fakeThis.showWarning).toHaveBeenCalledTimes(1);
+		expect(fakeThis.showWarning).not.toHaveBeenCalled();
+		expect(modelRuntime.checkAuth).not.toHaveBeenCalled();
 		expect(modelRuntime.getAuth).not.toHaveBeenCalled();
 	});
 
