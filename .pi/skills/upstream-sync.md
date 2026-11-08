@@ -63,7 +63,7 @@ Upstream: <full sha>
 Adapted: <one line on what changed>   # only for adapted commits
 ```
 
-Stage explicit paths. When several ports were applied to the working tree together, split them by applying each patch to the index in order with `git apply --cached /tmp/<sha>.patch` and committing; after the last commit `git diff` must be empty. Run `npm run check` on the final tree (this clone has no pre-commit hook installed).
+Stage explicit paths. When several ports were applied to the working tree together, split them by applying each patch to the index in order with `git apply --cached /tmp/<sha>.patch` and committing; after the last commit `git diff` must be empty. The pre-commit hook runs `npm run check` against the whole working tree, not the staged split, so intermediate commits are not checked on their own; only the final tree is.
 
 ## 6. Record
 
