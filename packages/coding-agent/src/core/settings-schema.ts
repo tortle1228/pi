@@ -237,7 +237,7 @@ const PlanModeSettingsSchema = Type.Object(
 		bashApproval: Type.Optional(
 			Type.Union([Type.Literal("ask"), Type.Literal("allow")], {
 				description:
-					'Plan mode bash commands that are not known inspection commands: "ask" (default) or "allow" without asking.',
+					'Unclassified Plan mode bash commands: "ask" (default) or "allow" without asking. Detected mutations are blocked in both modes. This is not a read-only sandbox.',
 			}),
 		),
 	},

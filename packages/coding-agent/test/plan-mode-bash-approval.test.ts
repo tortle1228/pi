@@ -5,7 +5,7 @@ import planMode from "../src/extensions/plan-mode/index.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => Promise<unknown>;
 
-function setup(settings: Settings) {
+function setup(settings: Settings, mode: "plan" | "build" = "plan") {
 	const handlers = new Map<string, Handler>();
 	const api = {
 		registerFlag: vi.fn(),
@@ -13,7 +13,7 @@ function setup(settings: Settings) {
 		registerCommand: vi.fn(),
 		on: (event: string, handler: Handler) => handlers.set(event, handler),
 		getFlag: () => "",
-		getMode: () => "plan",
+		getMode: () => mode,
 		getSettings: () => settings,
 		getActiveTools: () => ["read", "bash"],
 		getAllTools: () => [],
@@ -41,6 +41,39 @@ function setup(settings: Settings) {
 }
 
 describe("Plan mode bash approval setting", () => {
+	it.each(["ask", "allow"] as const)("blocks mutations without approval under %s", async (bashApproval) => {
+		const { callBash, select } = setup({ plan: { bashApproval } });
+		for (const command of [
+			"rm file",
+			"git status && git commit -m x",
+			"echo x > file",
+			"npm install foo",
+			"curl -X POST https://example.com",
+			"kubectl delete pod example",
+			"kubectl --context=prod delete deployment app",
+			"terraform -chdir=infra apply",
+			"npm --prefix /tmp/project install foo",
+			"curl -A -- -X POST https://example.com",
+		]) {
+			expect(await callBash(command)).toMatchObject({ block: true, reason: expect.stringContaining("Build mode") });
+		}
+		expect(select).not.toHaveBeenCalled();
+	});
+
+	it("does not block option values that resemble mutations", async () => {
+		const { callBash, select } = setup({ plan: { bashApproval: "allow" } });
+		for (const command of ["find . -name '-delete'", "sort -to input.txt", "kubectl --context delete get pods"]) {
+			expect(await callBash(command)).toBeUndefined();
+		}
+		expect(select).not.toHaveBeenCalled();
+	});
+
+	it("does not restrict Build mode", async () => {
+		const { callBash, select } = setup({}, "build");
+		expect(await callBash("rm file")).toBeUndefined();
+		expect(select).not.toHaveBeenCalled();
+	});
+
 	it("asks for unknown commands by default", async () => {
 		const { callBash, select } = setup({});
 		expect(await callBash("npm test")).toMatchObject({ block: true });

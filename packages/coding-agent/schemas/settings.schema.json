@@ -57,7 +57,7 @@
               "const": "allow"
             }
           ],
-          "description": "Plan mode bash commands that are not known inspection commands: \"ask\" (default) or \"allow\" without asking."
+          "description": "Unclassified Plan mode bash commands: \"ask\" (default) or \"allow\" without asking. Detected mutations are blocked in both modes. This is not a read-only sandbox."
         }
       },
       "description": "Plan mode defaults. Values left out follow the top-level defaults."
@@ -731,6 +731,11 @@
       ],
       "description": "Horizontal padding for transcript content.",
       "default": 1
+    },
+    "maxProseWidth": {
+      "type": "number",
+      "description": "Maximum width in terminal columns for prose in assistant responses; 0 disables the cap.",
+      "default": 0
     },
     "autocompleteMaxVisible": {
       "type": "number",

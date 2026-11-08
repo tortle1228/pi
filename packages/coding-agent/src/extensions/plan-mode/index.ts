@@ -2,7 +2,7 @@
 import type { AgentMode } from "../../core/agent-mode.ts";
 import { type ExtensionAPI, type ExtensionContext, isToolCallEventType } from "../../core/extensions/types.ts";
 import type { SessionEntry } from "../../core/session-manager.ts";
-import { toSafeCommand } from "./bash-policy.ts";
+import { getMutationReason, toSafeCommand } from "./bash-policy.ts";
 import { PlanMenu, type PlanMenuChoice } from "./plan-menu.ts";
 import { PLAN_MODE_BASH_NOTES, PLAN_MODE_BASH_NOTES_UNRESTRICTED, PLAN_MODE_INSTRUCTIONS } from "./prompt.ts";
 import { extractProposedPlan, renderProposedPlanMarkdown } from "./proposed-plan.ts";
@@ -176,6 +176,13 @@ export default function planMode(pi: ExtensionAPI): void {
 		}
 		if (isToolCallEventType("bash", event)) {
 			const command = event.input.command;
+			const mutation = getMutationReason(command);
+			if (mutation) {
+				return {
+					block: true,
+					reason: `Plan mode: blocked ${mutation}. Switch to Build mode to make changes; do not retry in Plan mode.`,
+				};
+			}
 			const safeCommand = toSafeCommand(command);
 			if (safeCommand !== undefined) {
 				event.input.command = safeCommand;

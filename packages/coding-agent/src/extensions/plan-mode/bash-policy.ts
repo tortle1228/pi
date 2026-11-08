@@ -6,6 +6,8 @@ interface Word {
 	/** Text the command receives. */
 	value: string;
 	redirect: boolean;
+	/** Output operator whose next word is a file, used only by mutation inspection. */
+	output?: boolean;
 	/** Contains an unquoted * ? [ ], which the shell expands into file names. */
 	glob: boolean;
 }
@@ -20,15 +22,23 @@ const REDIRECTS = ["2>/dev/null", "2>&1"];
 // Unquoted globs are allowed only for programs without option-style side effects, see toSafeCommand.
 const UNQUOTED_REJECTED = /[$`\\(){}<>#\n\r]/;
 const GLOB_CHARS = /[*?[\]]/;
-const isBoundary = (char: string | undefined) => char === undefined || " \t;|&".includes(char);
+const isBoundary = (char: string | undefined) => char === undefined || " \t;|&\n".includes(char);
 
-function parse(source: string): Segment[] | undefined {
+function parse(source: string, inspectWrites = false): Segment[] | undefined {
 	const segments: Segment[] = [];
 	let words: Word[] = [];
 	let i = 0;
 	while (i < source.length) {
 		const char = source[i];
 		if (char === " " || char === "\t") {
+			i++;
+			continue;
+		}
+		if (char === "\n" && inspectWrites) {
+			if (words.length > 0) {
+				segments.push({ words, separator: "\n" });
+				words = [];
+			}
 			i++;
 			continue;
 		}
@@ -47,13 +57,21 @@ function parse(source: string): Segment[] | undefined {
 			i += redirect.length;
 			continue;
 		}
+		if (inspectWrites) {
+			const output = /^(?:\d*)(?:>>|>\||>)(?:&(?:\d+|-))?/.exec(source.slice(i))?.[0];
+			if (output) {
+				words.push({ raw: output, value: output, redirect: true, output: !output.includes("&"), glob: false });
+				i += output.length;
+				continue;
+			}
+		}
 		// Only ~ and ~/x expand predictably; HEAD~3 stays literal because the tilde is not leading.
 		if (char === "~" && source[i + 1] !== "/" && !isBoundary(source[i + 1])) return undefined;
 
 		const start = i;
 		let value = "";
 		let glob = false;
-		while (!isBoundary(source[i])) {
+		while (!isBoundary(source[i]) && !(inspectWrites && source[i] === ">")) {
 			const c = source[i];
 			if (c === "'") {
 				const close = source.indexOf("'", i + 1);
@@ -78,9 +96,10 @@ function parse(source: string): Segment[] | undefined {
 				i++;
 			}
 		}
+		if (i === start) return undefined;
 		words.push({ raw: source.slice(start, i), value, redirect: false, glob });
 	}
-	if (words.length === 0) return undefined;
+	if (words.length === 0) return inspectWrites && segments.at(-1)?.separator === ";" ? segments : undefined;
 	segments.push({ words });
 	return segments;
 }
@@ -214,6 +233,239 @@ function toSafeGit(words: Word[]): string | undefined {
 		`${subcommand.raw}${GIT_SAFETY_FLAGS[subcommand.value] ?? ""}`,
 		...rest.map((word) => word.raw),
 	].join(" ");
+}
+
+const MUTATING_PROGRAMS = new Set(
+	"rm rmdir mv cp install touch mkdir ln truncate tee chmod chown chgrp sudo".split(" "),
+);
+const MUTATING_SUBCOMMANDS: Record<string, readonly string[]> = {
+	git: "add commit reset restore checkout switch clean merge rebase cherry-pick revert am apply fetch pull push clone init gc prune".split(
+		" ",
+	),
+	npm: "install i ci uninstall remove update publish unpublish".split(" "),
+	pip: ["install", "uninstall"],
+	pip3: ["install", "uninstall"],
+	uv: ["sync", "add", "remove"],
+	terraform: ["apply", "destroy", "import"],
+	kubectl: "apply create delete replace patch edit scale set rollout exec".split(" "),
+};
+const GH_MUTATIONS: Record<string, readonly string[]> = {
+	pr: ["create", "merge", "close", "reopen", "edit"],
+	issue: ["create", "close", "reopen", "edit"],
+	release: ["create", "delete", "edit", "upload"],
+	repo: ["create", "delete"],
+	workflow: ["run"],
+	run: ["cancel", "rerun"],
+};
+const LEADING_OPTIONS: Record<string, { values: readonly string[]; flags: readonly string[] }> = {
+	git: { values: ["-C", "-c", "--git-dir", "--work-tree"], flags: ["--no-pager", "--no-optional-locks"] },
+	npm: {
+		values: ["--prefix", "--workspace", "-w", "--registry", "--cache", "--userconfig"],
+		flags: ["-g", "--global", "--ignore-scripts", "--offline", "--silent"],
+	},
+	pip: {
+		values: ["--python", "--proxy", "--timeout", "--retries", "--index-url", "--cache-dir", "--log"],
+		flags: [
+			"--require-virtualenv",
+			"--isolated",
+			"--no-input",
+			"--disable-pip-version-check",
+			"--no-cache-dir",
+			"-q",
+			"--quiet",
+			"-v",
+			"--verbose",
+		],
+	},
+	uv: {
+		values: ["--directory", "--project", "--config-file", "--cache-dir", "--color"],
+		flags: ["--offline", "--no-config", "--no-cache", "-q", "--quiet", "-v", "--verbose"],
+	},
+	terraform: { values: ["-chdir"], flags: [] },
+	kubectl: {
+		values: [
+			"--context",
+			"--namespace",
+			"-n",
+			"--kubeconfig",
+			"--cluster",
+			"--user",
+			"--server",
+			"-s",
+			"--token",
+			"--as",
+			"--as-group",
+			"--request-timeout",
+		],
+		flags: ["--insecure-skip-tls-verify", "--warnings-as-errors"],
+	},
+	gh: { values: ["--repo", "-R", "--hostname"], flags: [] },
+};
+const FIND_VALUE_PREDICATES = new Set(
+	"-name -iname -path -ipath -wholename -iwholename -regex -iregex -lname -ilname -printf -type -xtype -user -group -uid -gid -size -mtime -mmin -atime -amin -ctime -cmin -newer -newermt -samefile -inum -links -perm -maxdepth -mindepth -regextype".split(
+		" ",
+	),
+);
+
+/** A detected mutation, not a proof that commands returning undefined are read-only. */
+export function getMutationReason(command: string): string | undefined {
+	// shortcut: scripts and unsupported shell syntax remain unclassified; use an OS sandbox for enforced read-only execution.
+	const segments = parse(command.trim(), true);
+	if (!segments) return undefined;
+	for (const { words } of segments) {
+		const args: string[] = [];
+		for (let i = 0; i < words.length; i++) {
+			const word = words[i];
+			if (word.output) {
+				const target = words[++i];
+				if (!target || target.redirect) return undefined;
+				if (target.value !== "/dev/null") return "file output redirection";
+			} else if (!word.redirect) {
+				args.push(word.value);
+			}
+		}
+		const name = args.shift()?.split("/").pop();
+		if (!name) continue;
+		if (MUTATING_PROGRAMS.has(name)) return `${name}: file or system mutation`;
+		const optionProgram = name === "pip3" ? "pip" : name;
+		if (Object.hasOwn(LEADING_OPTIONS, optionProgram)) {
+			const { values, flags } = LEADING_OPTIONS[optionProgram];
+			while (args[0]?.startsWith("-")) {
+				const option = args[0];
+				if (option === "--") {
+					args.shift();
+					break;
+				}
+				if (values.includes(option)) args.splice(0, 2);
+				else if (
+					flags.includes(option.split("=")[0]) ||
+					values.some(
+						(value) => option.startsWith(`${value}=`) || (/^-[^-]$/.test(value) && option.startsWith(value)),
+					)
+				)
+					args.shift();
+				else break;
+			}
+		}
+		if (name === "git") {
+			const restricted = GIT_RESTRICTED_SUBCOMMANDS[args[0]];
+			if (["branch", "tag", "remote", "stash"].includes(args[0]) && restricted && !restricted(args.slice(1))) {
+				return `git ${args[0]}: repository mutation`;
+			}
+		}
+		if (Object.hasOwn(MUTATING_SUBCOMMANDS, name) && MUTATING_SUBCOMMANDS[name].includes(args[0])) {
+			return `${name} ${args[0]}: state mutation`;
+		}
+		if (name === "uv" && args[0] === "pip" && ["install", "uninstall", "sync"].includes(args[1])) {
+			return "uv pip: package mutation";
+		}
+		if (name === "gh" && Object.hasOwn(GH_MUTATIONS, args[0]) && GH_MUTATIONS[args[0]].includes(args[1])) {
+			return `gh ${args[0]} ${args[1]}: remote mutation`;
+		}
+		if (name === "sed") {
+			const options = args.slice(0, args.includes("--") ? args.indexOf("--") : args.length);
+			if (options.some((arg) => isDenied(arg, { short: "i", long: ["--in-place"] })))
+				return "sed: file write option";
+		}
+		if (name === "find") {
+			for (let i = 0; i < args.length; i++) {
+				if (FIND_VALUE_PREDICATES.has(args[i])) i++;
+				else if (["-delete", "-fprint", "-fprint0", "-fprintf", "-fls"].includes(args[i]))
+					return "find: file write option";
+			}
+		}
+		if (name === "sort") {
+			for (let i = 0; i < args.length; i++) {
+				const arg = args[i];
+				if (arg === "--") break;
+				if (arg.startsWith("--outp")) return "sort: file write option";
+				if (
+					[
+						"--field-separator",
+						"--key",
+						"--buffer-size",
+						"--temporary-directory",
+						"--sort",
+						"--parallel",
+						"--batch-size",
+						"--compress-program",
+						"--random-source",
+						"--files0-from",
+					].includes(arg)
+				)
+					i++;
+				else if (/^-[^-]/.test(arg)) {
+					for (let j = 1; j < arg.length; j++) {
+						if (arg[j] === "o") return "sort: file write option";
+						if ("ktST".includes(arg[j])) {
+							if (j === arg.length - 1) i++;
+							break;
+						}
+					}
+				}
+			}
+		}
+		if (name === "uniq") {
+			let positional = 0;
+			let endOptions = false;
+			for (let i = 0; i < args.length; i++) {
+				const arg = args[i];
+				if (endOptions || arg === "-" || !arg.startsWith("-")) positional++;
+				else if (arg === "--") endOptions = true;
+				else if (
+					/^-(?:[cdDiuz]*[fsw])$/.test(arg) ||
+					["--skip-fields", "--skip-chars", "--check-chars"].includes(arg)
+				)
+					i++;
+			}
+			if (positional > 1) return "uniq: output file";
+		}
+		if (name === "curl") {
+			for (let i = 0; i < args.length; i++) {
+				const arg = args[i];
+				if (arg === "--") break;
+				// Header/auth values are data, not curl options.
+				if (
+					[
+						"-H",
+						"--header",
+						"-A",
+						"--user-agent",
+						"-m",
+						"--max-time",
+						"-u",
+						"--user",
+						"-e",
+						"--referer",
+						"-x",
+						"--proxy",
+					].includes(arg)
+				) {
+					i++;
+					continue;
+				}
+				if (isDenied(arg, { long: ["--output", "--remote-name", "--upload-file", "--data", "--form", "--json"] })) {
+					return "curl: file output or upload";
+				}
+				if (arg === "--request" || arg.startsWith("--request=")) {
+					const method = arg === "--request" ? args[++i] : arg.slice("--request=".length);
+					if (method && !["GET", "HEAD", "OPTIONS"].includes(method)) return "curl: mutating HTTP method";
+				} else if (/^-[^-]/.test(arg)) {
+					for (let j = 1; j < arg.length; j++) {
+						const flag = arg[j];
+						if ("oOTdF".includes(flag)) return "curl: file output or upload";
+						if ("HAmuexX".includes(flag)) {
+							const value = arg.slice(j + 1) || args[++i];
+							if (flag === "X" && value && !["GET", "HEAD", "OPTIONS"].includes(value))
+								return "curl: mutating HTTP method";
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+	return undefined;
 }
 
 /**

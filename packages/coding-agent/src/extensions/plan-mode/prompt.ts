@@ -2,13 +2,16 @@
 export const PLAN_MODE_BASH_NOTES = `## Bash in this environment
 
 * Known read-only commands run right away, and you may combine them with pipes, \`&&\`, \`||\`, and \`;\`.
-* Any other command, such as a test or build, asks the user for approval first. Request one only when its result would change the plan.
+* Detected changes (file writes, Git mutations, installs, uploads, and supported deployment commands) are blocked without approval. Switch to Build mode to make changes; do not retry blocked commands in Plan mode.
+* Other unclassified commands, such as a test or build, ask the user for approval first. Request one only when its result would change the plan.
 * Avoid approval prompts: quote globs passed as option values (\`--include='*.ts'\`), do not use \`$(...)\`, backticks or variables (write the path out), curl runs without approval only as a plain read: quote the URL and use only -s -S -L -I -i -f, -H, -A, -m (any other flag asks), and write each command on one line.
 * If the user denies a command, do not retry it.`;
 
 export const PLAN_MODE_BASH_NOTES_UNRESTRICTED = `## Bash in this environment
 
-* Commands run without asking the user, but Plan mode still forbids changing anything. Run only commands that inspect.`;
+* Detected changes (file writes, Git mutations, installs, uploads, and supported deployment commands) are blocked without approval. Switch to Build mode to make changes; do not retry blocked commands in Plan mode.
+* Other commands run without asking the user, but Plan mode still forbids changing anything. Run only commands that inspect.
+* This guard is not a sandbox: scripts and unsupported shell syntax may still change files or remote state.`;
 
 // Codex CLI Plan Mode instructions, verbatim. Codex 0.16x keeps them free of update_plan guidance.
 export const PLAN_MODE_INSTRUCTIONS = `# Plan Mode (Conversational)

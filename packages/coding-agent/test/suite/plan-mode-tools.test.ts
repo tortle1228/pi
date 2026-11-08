@@ -109,6 +109,19 @@ describe("built-in plan-mode extension", () => {
 			fauxAssistantMessage("done"),
 		];
 
+		it.each(["ask", "allow"] as const)("never executes detected mutations under %s", async (bashApproval) => {
+			const { harness, bashExecute, select } = await createWithApproval(["Allow"]);
+			harness.settingsManager.applyOverrides({ plan: { bashApproval } });
+			harness.setResponses(callsThenDone(["git status && rm file"]));
+			await harness.session.prompt("look");
+			expect(select).not.toHaveBeenCalled();
+			expect(bashExecute).not.toHaveBeenCalled();
+			expect(getToolResult(harness, "bash")).toMatchObject({
+				isError: true,
+				content: [{ type: "text", text: expect.stringContaining("Build mode") }],
+			});
+		});
+
 		it("runs an unknown command only after the user allows it", async () => {
 			const { harness, bashExecute, select } = await createWithApproval(["Allow"]);
 			harness.setResponses(callsThenDone([UNKNOWN]));
@@ -142,12 +155,12 @@ describe("built-in plan-mode extension", () => {
 
 		it("shows control characters as visible text but runs the command as sent", async () => {
 			const { harness, bashExecute, select } = await createWithApproval(["Allow"]);
-			const command = "rm x \x1b[8mhidden\x1b[0m ‮fdp\nls";
+			const command = "npm test \x1b[8mhidden\x1b[0m ‮fdp\nls";
 			harness.setResponses(callsThenDone([command]));
 
 			await harness.session.prompt("check");
 
-			expect(select.mock.calls[0][0]).toContain("rm x �[8mhidden�[0m �fdp\nls");
+			expect(select.mock.calls[0][0]).toContain("npm test �[8mhidden�[0m �fdp\nls");
 			expect(bashExecute.mock.calls[0][1]).toMatchObject({ command });
 		});
 
