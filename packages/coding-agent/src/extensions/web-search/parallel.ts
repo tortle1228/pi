@@ -1,4 +1,4 @@
-// Parallel Search, Extract, and Responses calls. Auth is PARALLEL_API_KEY only.
+// Parallel Search, Extract, and Responses calls. The caller supplies the stored key.
 import type { SearchResult } from "./search.ts";
 
 const SEARCH_URL = "https://api.parallel.ai/v1/search";
@@ -6,12 +6,6 @@ const EXTRACT_URL = "https://api.parallel.ai/v1/extract";
 const RESPONSES_URL = "https://api.parallel.ai/v1/responses";
 const SEARCH_TIMEOUT_MS = 60_000;
 const RESEARCH_TIMEOUT_MS = 120_000;
-
-/** The trimmed Parallel key, or undefined when it is unset or blank. */
-export function parallelApiKey(): string | undefined {
-	const key = process.env.PARALLEL_API_KEY?.trim();
-	return key ? key : undefined;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

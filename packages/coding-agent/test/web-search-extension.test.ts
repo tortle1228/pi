@@ -1,4 +1,5 @@
 // Verify extension registration, provider transitions, and execution-time provider and auth selection.
+import type { Provider } from "@earendil-works/pi-ai";
 import type { TSchema } from "typebox";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type {
@@ -13,24 +14,43 @@ import webSearch from "../src/extensions/web-search/index.ts";
 import { getSearchBackend, getXSearchBackend } from "../src/extensions/web-search/search.ts";
 import { searchZai } from "../src/extensions/web-search/zai.ts";
 
+const savedKeys: { parallel?: string; tavily?: string } = {};
+let authFailure: Error | undefined;
+
+function storedKey(id: string): string | undefined {
+	return id === "parallel" ? savedKeys.parallel : id === "tavily" ? savedKeys.tavily : undefined;
+}
+
 function context(provider?: string): ExtensionToolContext {
-	// These tests exercise only model identity and auth; the rest of the host context is unused.
+	// These tests exercise only model identity and stored search keys; the rest of the host context is unused.
 	return {
 		model: provider ? { provider, id: "test-model", baseUrl: "https://api.z.ai/api/coding/paas/v4" } : undefined,
-		modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true }) },
+		modelRegistry: {
+			getApiKeyAndHeaders: async () => ({ ok: true }),
+			getProviderAuthStatus: (id: string) => ({ configured: Boolean(storedKey(id)?.trim()) }),
+			getProviderAuth: async (id: string) => {
+				if (authFailure) throw authFailure;
+				const key = storedKey(id)?.trim();
+				return key ? { auth: { apiKey: key } } : undefined;
+			},
+		},
 	} as unknown as ExtensionToolContext;
 }
 
-function harness(defaultTools?: string[]) {
+function harness(defaultTools?: string[], order?: string[]) {
 	let active = ["read", "bash"];
 	const registered = new Map<string, ToolDefinition<TSchema, unknown, unknown>>();
+	const providers = new Map<string, Provider>();
 	const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
 	const stub = {
 		registerTool(tool: ToolDefinition<TSchema, unknown, unknown>) {
 			registered.set(tool.name, tool);
 		},
+		registerProvider(provider: Provider) {
+			providers.set(provider.id, provider);
+		},
 		getActiveTools: () => active,
-		getSettings: () => ({ defaultTools }),
+		getSettings: () => ({ defaultTools, ...(order ? { webSearch: { order } } : {}) }),
 		setActiveTools(names: string[]) {
 			active = names;
 		},
@@ -50,6 +70,7 @@ function harness(defaultTools?: string[]) {
 		xSearch,
 		webFetch,
 		webResearch,
+		providers,
 		active: () => active,
 		disable: () => stub.setActiveTools(active.filter((name) => name !== "web_search")),
 		emit(event: string, ctx: ExtensionContext) {
@@ -61,13 +82,20 @@ function harness(defaultTools?: string[]) {
 }
 
 describe("provider-aware web_search", () => {
-	const savedKey = process.env.PARALLEL_API_KEY;
+	const savedParallelEnv = process.env.PARALLEL_API_KEY;
+	const savedTavilyEnv = process.env.TAVILY_API_KEY;
 	beforeEach(() => {
+		delete savedKeys.parallel;
+		delete savedKeys.tavily;
+		authFailure = undefined;
 		delete process.env.PARALLEL_API_KEY;
+		delete process.env.TAVILY_API_KEY;
 	});
 	afterEach(() => {
-		if (savedKey === undefined) delete process.env.PARALLEL_API_KEY;
-		else process.env.PARALLEL_API_KEY = savedKey;
+		if (savedParallelEnv === undefined) delete process.env.PARALLEL_API_KEY;
+		else process.env.PARALLEL_API_KEY = savedParallelEnv;
+		if (savedTavilyEnv === undefined) delete process.env.TAVILY_API_KEY;
+		else process.env.TAVILY_API_KEY = savedTavilyEnv;
 	});
 
 	it("registers inactive standalone search tools", () => {
@@ -265,7 +293,7 @@ describe("provider-aware web_search", () => {
 	});
 
 	it("uses Parallel for a provider without native search when the key is set", async () => {
-		process.env.PARALLEL_API_KEY = "pk-test";
+		savedKeys.parallel = "pk-test";
 		const h = harness();
 		h.emit("session_start", context("google"));
 		expect(h.active()).toEqual(["read", "bash", "web_search", "web_fetch", "web_research"]);
@@ -292,7 +320,7 @@ describe("provider-aware web_search", () => {
 	});
 
 	it("retries a failed native search once with Parallel", async () => {
-		process.env.PARALLEL_API_KEY = "pk-test";
+		savedKeys.parallel = "pk-test";
 		const backend = getSearchBackend("zai");
 		if (!backend) throw new Error("zai backend is missing");
 		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("native down"));
@@ -326,7 +354,7 @@ describe("provider-aware web_search", () => {
 	});
 
 	it("does not fall back when the caller cancelled", async () => {
-		process.env.PARALLEL_API_KEY = "pk-test";
+		savedKeys.parallel = "pk-test";
 		const backend = getSearchBackend("zai");
 		if (!backend) throw new Error("zai backend is missing");
 		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("cancelled"));
@@ -345,7 +373,7 @@ describe("provider-aware web_search", () => {
 	});
 
 	it("reports both errors when the Parallel fallback also fails", async () => {
-		process.env.PARALLEL_API_KEY = "pk-test";
+		savedKeys.parallel = "pk-test";
 		const backend = getSearchBackend("zai");
 		if (!backend) throw new Error("zai backend is missing");
 		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("native down"));
@@ -363,14 +391,14 @@ describe("provider-aware web_search", () => {
 	});
 
 	it("keeps web_fetch off when defaultTools removes it", () => {
-		process.env.PARALLEL_API_KEY = "pk-test";
+		savedKeys.parallel = "pk-test";
 		const h = harness(["-web_fetch"]);
 		h.emit("session_start", context("google"));
 		expect(h.active()).toEqual(["read", "bash", "web_search", "web_research"]);
 	});
 
 	it("rejects a password or non-http URL and sends the parsed URL", async () => {
-		process.env.PARALLEL_API_KEY = "pk-test";
+		savedKeys.parallel = "pk-test";
 		const h = harness();
 		const fetchMock = vi.fn(async (_input: unknown, init?: RequestInit) => {
 			expect(JSON.parse(String(init?.body))).toEqual({ urls: ["https://ex.com/"] });
@@ -399,7 +427,7 @@ describe("provider-aware web_search", () => {
 	});
 
 	it("keeps the research Response ID when the answer is truncated", async () => {
-		process.env.PARALLEL_API_KEY = "pk-test";
+		savedKeys.parallel = "pk-test";
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () =>
@@ -429,5 +457,203 @@ describe("provider-aware web_search", () => {
 		if (!block || block.type !== "text") throw new Error("Expected a text result");
 		expect(block.text).toContain("Response ID: resp_keep");
 		expect(block.text).toMatch(/\[Search results truncated:/);
+	});
+
+	it("tries Tavily after Parallel when both earlier backends fail", async () => {
+		savedKeys.parallel = "pk-test";
+		savedKeys.tavily = "tvly-test";
+		const backend = getSearchBackend("zai");
+		if (!backend) throw new Error("zai backend is missing");
+		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("native down"));
+		onTestFinished(() => search.mockRestore());
+		const urls: string[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string) => {
+				urls.push(String(input));
+				if (String(input).includes("parallel.ai")) {
+					return Response.json({ error: { message: "nope" } }, { status: 500, statusText: "nope" });
+				}
+				return Response.json({ results: [{ url: "https://ex.com", title: "Ex", content: "note" }] });
+			}),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const result = await harness().tool.execute("id", { query: "docs" }, undefined, undefined, context("zai"));
+		expect(urls.map((url) => new URL(url).host)).toEqual(["api.parallel.ai", "api.tavily.com"]);
+		expect(result.details).toEqual({ backend: "tavily", fallbackFrom: "zai" });
+	});
+
+	it("uses Tavily before native when the order says so, and does not call native after success", async () => {
+		savedKeys.tavily = "tvly-test";
+		const backend = getSearchBackend("zai");
+		if (!backend) throw new Error("zai backend is missing");
+		const search = vi.spyOn(backend, "search").mockResolvedValue({ backend: "zai", text: "native" });
+		onTestFinished(() => search.mockRestore());
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (_input: unknown, init?: RequestInit) => {
+				expect(new Headers(init?.headers).get("authorization")).toBe("Bearer tvly-test");
+				return Response.json({ results: [{ url: "https://ex.com", title: "Ex", content: "note" }] });
+			}),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const result = await harness(undefined, ["tavily", "native"]).tool.execute(
+			"id",
+			{ query: "docs" },
+			undefined,
+			undefined,
+			context("zai"),
+		);
+		expect(search).not.toHaveBeenCalled();
+		expect(result.details).toEqual({ backend: "tavily" });
+	});
+
+	it("keeps web_search off when the order names only Tavily and the key is unset", () => {
+		const h = harness(undefined, ["tavily"]);
+		h.emit("session_start", context("zai"));
+		expect(h.active()).toEqual(["read", "bash"]);
+	});
+
+	it("enables web_fetch but not web_research when only the Tavily key is set", () => {
+		savedKeys.tavily = "tvly-test";
+		const h = harness();
+		h.emit("session_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash", "web_search", "web_fetch"]);
+	});
+
+	it("does not try Tavily after a cancelled native search", async () => {
+		savedKeys.tavily = "tvly-test";
+		const backend = getSearchBackend("zai");
+		if (!backend) throw new Error("zai backend is missing");
+		const search = vi.spyOn(backend, "search").mockRejectedValue(new Error("cancelled"));
+		onTestFinished(() => search.mockRestore());
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const controller = new AbortController();
+		controller.abort();
+		await expect(
+			harness().tool.execute("id", { query: "docs" }, controller.signal, undefined, context("zai")),
+		).rejects.toThrow("cancelled");
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("fetches with Tavily when Parallel is not configured, and falls back when Parallel extract fails", async () => {
+		savedKeys.tavily = "tvly-test";
+		const onlyTavily = harness();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string, init?: RequestInit) => {
+				expect(String(input)).toBe("https://api.tavily.com/extract");
+				expect(JSON.parse(String(init?.body))).toEqual({ urls: ["https://ex.com/"], query: "focus" });
+				return Response.json({ results: [{ url: "https://ex.com/", raw_content: "page" }], failed_results: [] });
+			}),
+		);
+		onTestFinished(() => {
+			vi.unstubAllGlobals();
+		});
+		const fetched = await onlyTavily.webFetch.execute(
+			"id",
+			{ urls: ["https://ex.com"], objective: "focus" },
+			undefined,
+			undefined,
+			context("google"),
+		);
+		expect(fetched).toEqual({
+			content: [{ type: "text", text: "https://ex.com/\npage" }],
+			details: { backend: "tavily" },
+		});
+
+		savedKeys.parallel = "pk-test";
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string) => {
+				if (String(input).includes("parallel.ai")) {
+					return Response.json({ error: { message: "nope" } }, { status: 500, statusText: "nope" });
+				}
+				return Response.json({ results: [{ url: "https://ex.com/", raw_content: "page" }] });
+			}),
+		);
+		const fallback = await harness().webFetch.execute(
+			"id",
+			{ urls: ["https://ex.com"] },
+			undefined,
+			undefined,
+			context("google"),
+		);
+		expect(fallback.details).toEqual({ backend: "tavily", fallbackFrom: "parallel" });
+	});
+
+	it("ignores environment keys when no credential is stored", () => {
+		process.env.PARALLEL_API_KEY = "pk-test";
+		process.env.TAVILY_API_KEY = "tvly-test";
+		const h = harness();
+		h.emit("session_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash"]);
+	});
+
+	it("activates search tools on the next prompt after a key is stored", () => {
+		const h = harness();
+		h.emit("session_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash"]);
+		savedKeys.tavily = "tvly-test";
+		h.emit("before_agent_start", context("google"));
+		expect(h.active()).toEqual(["read", "bash", "web_search", "web_fetch"]);
+	});
+
+	it("resolves a stored key and ignores the environment", async () => {
+		process.env.PARALLEL_API_KEY = "from-env";
+		const provider = harness().providers.get("parallel");
+		const resolve = provider?.auth.apiKey?.resolve;
+		if (!resolve) throw new Error("parallel provider was not registered");
+		const input = {
+			ctx: { env: async (name: string) => process.env[name], fileExists: async () => false },
+			signal: AbortSignal.timeout(1000),
+		};
+		await expect(resolve({ ...input, credential: { type: "api_key", key: "stored" } })).resolves.toEqual({
+			auth: { apiKey: "stored" },
+			source: "stored credential",
+		});
+		await expect(resolve({ ...input, credential: undefined })).resolves.toBeUndefined();
+		await expect(resolve({ ...input, credential: { type: "api_key" } })).rejects.toThrow(
+			"Parallel API key could not be read",
+		);
+		const check = provider.auth.apiKey?.check;
+		if (!check) throw new Error("parallel provider has no auth check");
+		await expect(check({ ...input, credential: { type: "api_key", key: "stored" } })).resolves.toEqual({
+			type: "api_key",
+			source: "stored credential",
+		});
+		await expect(check({ ...input, credential: undefined })).resolves.toBeUndefined();
+	});
+
+	it("keeps a manual disable until the saved login changes", () => {
+		savedKeys.parallel = "pk-test";
+		const h = harness();
+		h.emit("session_start", context("google"));
+		expect(h.active()).toContain("web_search");
+		h.disable();
+		h.emit("before_agent_start", context("google"));
+		expect(h.active()).not.toContain("web_search");
+		savedKeys.tavily = "tvly-test";
+		h.emit("before_agent_start", context("google"));
+		expect(h.active()).toContain("web_search");
+	});
+
+	it("reports a key read failure instead of asking for login", async () => {
+		savedKeys.parallel = "pk-test";
+		authFailure = new Error("API key auth failed for provider parallel: key command timed out");
+		await expect(
+			harness().tool.execute("id", { query: "docs" }, undefined, undefined, context("google")),
+		).rejects.toThrow("key command timed out");
+		await expect(
+			harness().tool.execute("id", { query: "docs" }, undefined, undefined, context("google")),
+		).rejects.not.toThrow("/login parallel");
 	});
 });

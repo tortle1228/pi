@@ -192,6 +192,56 @@ describe("post-login model discovery", () => {
 		expect(login.showError).not.toHaveBeenCalled();
 	});
 
+	it("does not report a missing default model for a provider with no models", async () => {
+		harness = await createHarness();
+		const session = harness.session;
+		const model = harness.getModel();
+		const unknownModel = { ...model, id: "unknown", provider: "unknown", api: "unknown" };
+		vi.spyOn(session.modelRuntime, "getProvider").mockReturnValue({
+			getModels: () => [],
+		} as never);
+		vi.spyOn(session.modelRuntime, "refresh").mockResolvedValue({ aborted: false, errors: new Map() });
+		const context = {
+			session,
+			updateAvailableProviderCount: vi.fn(),
+			footer: { invalidate: vi.fn() },
+			updateEditorBorderColor: vi.fn(),
+			showStatus: vi.fn(),
+			showError: vi.fn(),
+			showWarning: vi.fn(),
+			maybeWarnAboutAnthropicSubscriptionAuth: vi.fn(),
+			ui: { requestRender: vi.fn() },
+		};
+		await complete.call(context, "tavily", "Tavily", "api_key", unknownModel);
+		expect(context.showError).not.toHaveBeenCalled();
+		expect(context.showStatus).toHaveBeenCalledWith(expect.stringContaining("Saved API key for Tavily"));
+	});
+
+	it("still reports a missing default model when the provider can refresh its catalog", async () => {
+		harness = await createHarness();
+		const session = harness.session;
+		const model = harness.getModel();
+		const unknownModel = { ...model, id: "unknown", provider: "unknown", api: "unknown" };
+		vi.spyOn(session.modelRuntime, "getProvider").mockReturnValue({
+			getModels: () => [],
+			refreshModels: async () => {},
+		} as never);
+		vi.spyOn(session.modelRuntime, "refresh").mockResolvedValue({ aborted: false, errors: new Map() });
+		const context = {
+			session,
+			updateAvailableProviderCount: vi.fn(),
+			footer: { invalidate: vi.fn() },
+			updateEditorBorderColor: vi.fn(),
+			showStatus: vi.fn(),
+			showError: vi.fn(),
+			showWarning: vi.fn(),
+			maybeWarnAboutAnthropicSubscriptionAuth: vi.fn(),
+			ui: { requestRender: vi.fn() },
+		};
+		await complete.call(context, "custom", "Custom", "api_key", unknownModel);
+		expect(context.showError).toHaveBeenCalledWith(expect.stringContaining("no default model"));
+	});
+
 	it("reports an empty catalog only after refresh", async () => {
 		const login = await startLogin();
 		await login.discover([]);

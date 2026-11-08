@@ -151,6 +151,19 @@ function codemodeMode(options?: TSchemaOptions) {
 
 const CodemodeModeSchema = codemodeMode();
 
+const WebSearchBackendSchema = Type.Union([Type.Literal("native"), Type.Literal("parallel"), Type.Literal("tavily")]);
+
+const WebSearchSettingsSchema = Type.Object({
+	order: Type.Optional(
+		Type.Array(WebSearchBackendSchema, {
+			uniqueItems: true,
+			description:
+				'Fallback order for web_search and web_fetch. Skips a backend that is unavailable, and tries the next one when a call fails. "native" is the selected provider\'s search.',
+			default: SETTINGS_DEFAULTS.webSearch.order,
+		}),
+	),
+});
+
 const CodemodeSettingsSchema = Type.Object({
 	mode: Type.Optional(
 		codemodeMode({
@@ -417,6 +430,7 @@ export const SettingsSchema = Type.Object(
 		markdown: Type.Optional(MarkdownSettingsSchema),
 		warnings: Type.Optional(WarningSettingsSchema),
 		codemode: Type.Optional(CodemodeSettingsSchema),
+		webSearch: Type.Optional(WebSearchSettingsSchema),
 		sessionDir: Type.Optional(
 			Type.String({
 				description: "Custom session storage directory, in the same format as the --session-dir CLI flag.",

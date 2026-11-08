@@ -6262,7 +6262,11 @@ export class InteractiveMode {
 				if (providerId === "llama.cpp") {
 					selectionError = llamaCppPostLoginGuidance(actionLabel, providerModels.length);
 				} else if (!hasDefaultModelProvider(providerId)) {
-					selectionError = `${actionLabel}, but no default model is configured for provider "${providerId}". Use /model to select a model.`;
+					const provider = this.session.modelRuntime.getProvider(providerId);
+					// A credential with no catalog, such as a saved search key, has nothing to select.
+					if ((provider?.getModels().length ?? 0) > 0 || provider?.refreshModels !== undefined) {
+						selectionError = `${actionLabel}, but no default model is configured for provider "${providerId}". Use /model to select a model.`;
+					}
 				} else if (providerModels.length === 0) {
 					selectionError = `${actionLabel}, but no models are available for that provider. Use /model to select a model.`;
 				} else {

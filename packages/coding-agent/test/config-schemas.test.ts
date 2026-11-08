@@ -199,6 +199,8 @@ describe("generated configuration schemas", () => {
 			{ httpIdleTimeoutMs: "bogus" },
 			{ websocketConnectTimeoutMs: "30000" },
 			{ codemode: { inlineBudget: -1 } },
+			{ webSearch: { order: ["native", "native"] } },
+			{ webSearch: { order: ["google"] } },
 		]) {
 			expect(validator.Check(invalid)).toBe(false);
 		}
@@ -212,6 +214,7 @@ describe("generated configuration schemas", () => {
 				httpIdleTimeoutMs: 0,
 				websocketConnectTimeoutMs: "disabled",
 				codemode: { inlineBudget: 0 },
+				webSearch: { order: ["tavily", "native"] },
 			}),
 		).toBe(true);
 	});

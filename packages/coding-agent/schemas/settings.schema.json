@@ -683,6 +683,37 @@
         }
       }
     },
+    "webSearch": {
+      "type": "object",
+      "properties": {
+        "order": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "native"
+              },
+              {
+                "type": "string",
+                "const": "parallel"
+              },
+              {
+                "type": "string",
+                "const": "tavily"
+              }
+            ]
+          },
+          "uniqueItems": true,
+          "description": "Fallback order for web_search and web_fetch. Skips a backend that is unavailable, and tries the next one when a call fails. \"native\" is the selected provider's search.",
+          "default": [
+            "native",
+            "parallel",
+            "tavily"
+          ]
+        }
+      }
+    },
     "sessionDir": {
       "type": "string",
       "description": "Custom session storage directory, in the same format as the --session-dir CLI flag."

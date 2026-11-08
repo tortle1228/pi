@@ -60,6 +60,9 @@ export const SETTINGS_DEFAULTS = {
 		mode: "on",
 		inlineBudget: 3000,
 	},
+	webSearch: {
+		order: ["native", "parallel", "tavily"],
+	},
 	cacheWarming: "streaming",
 	tuiMode: "fullscreen",
 	fullscreenExitOutput: "transcript",

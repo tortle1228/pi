@@ -1,9 +1,56 @@
 // Register a standalone search tool and synchronize its availability with the selected provider.
+import type { Provider, ProviderStreamOptions } from "@earendil-works/pi-ai";
+import { stream, streamSimple } from "@earendil-works/pi-ai/compat";
 import { Type } from "typebox";
 import { defineTool, type ExtensionAPI, type ExtensionContext } from "../../core/extensions/types.ts";
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from "../../core/tools/truncate.ts";
-import { extractParallel, parallelApiKey, researchParallel } from "./parallel.ts";
-import { getXSearchBackend, resolveWebSearch, type SearchBackend } from "./search.ts";
+import { researchParallel } from "./parallel.ts";
+import {
+	fetchWeb,
+	getSearchBackend,
+	getXSearchBackend,
+	resolveWebSearch,
+	type SearchBackend,
+	searchKey,
+	webFetchAvailable,
+} from "./search.ts";
+
+function credentialProvider(id: "parallel" | "tavily", name: string): Provider {
+	return {
+		id,
+		name,
+		auth: {
+			apiKey: {
+				name: `${name} API key`,
+				login: async (interaction) => {
+					interaction.signal.throwIfAborted();
+					const key = (await interaction.prompt({ type: "secret", message: `Enter ${name} API key` })).trim();
+					interaction.signal.throwIfAborted();
+					if (!key) throw new Error(`${name} API key must not be blank.`);
+					return { type: "api_key", key };
+				},
+				check: async ({ credential, signal }) => {
+					signal.throwIfAborted();
+					return credential ? { type: "api_key", source: "stored credential" } : undefined;
+				},
+				resolve: async ({ credential, signal }) => {
+					signal.throwIfAborted();
+					if (!credential) return undefined;
+					const key = credential.key?.trim();
+					if (!key) {
+						throw new Error(
+							`${name} API key could not be read. Check the stored key or its !command, or run /login ${id} again.`,
+						);
+					}
+					return { auth: { apiKey: key }, source: "stored credential" };
+				},
+			},
+		},
+		getModels: () => [],
+		stream: (model, context, options) => stream(model, context, options as ProviderStreamOptions | undefined),
+		streamSimple: (model, context, options) => streamSimple(model, context, options),
+	};
+}
 
 /**
  * Keep the result within the standard tool output limit.
@@ -38,12 +85,12 @@ const searchTools: readonly SearchTool[] = [
 		name: "web_search",
 		label: "Web Search",
 		description:
-			"Search the web for current information. Uses the selected provider when it supports web search, and Parallel when it does not or that search fails. Returns source links.",
+			"Search the web for current information. Uses the selected provider when it supports web search, then the next available backend in webSearch.order when it does not or that search fails. Returns source links.",
 		promptSnippet: "Search the web for current information and source links",
 		guideline: "Cite the source URLs returned by web_search when using search results.",
 		queryDescription: "Web search query",
 		unsupported: "Web search",
-		resolve: resolveWebSearch,
+		resolve: getSearchBackend,
 	},
 	{
 		name: "x_search",
@@ -58,10 +105,12 @@ const searchTools: readonly SearchTool[] = [
 ];
 
 const parallelToolNames = ["web_fetch", "web_research"] as const;
-const parallelAuth = "Parallel authentication required. Set PARALLEL_API_KEY.";
 
 /** Register provider-aware web and X search without changing other tools' active states. */
 export default function webSearch(pi: ExtensionAPI): void {
+	pi.registerProvider(credentialProvider("parallel", "Parallel"));
+	pi.registerProvider(credentialProvider("tavily", "Tavily"));
+
 	for (const tool of searchTools) {
 		pi.registerTool(
 			defineTool({
@@ -73,7 +122,11 @@ export default function webSearch(pi: ExtensionAPI): void {
 				defaultActive: false,
 				parameters: Type.Object({ query: Type.String({ minLength: 1, description: tool.queryDescription }) }),
 				async execute(_id, { query }, signal, _onUpdate, ctx) {
-					const backend = tool.resolve(ctx.model?.provider);
+					const order = pi.getSettings().webSearch?.order;
+					const backend =
+						tool.name === "web_search"
+							? resolveWebSearch(ctx.model?.provider, order, ctx.modelRegistry)
+							: tool.resolve(ctx.model?.provider);
 					if (!backend)
 						throw new Error(
 							`${tool.unsupported} is not supported for provider "${ctx.model?.provider ?? "none"}".`,
@@ -96,8 +149,8 @@ export default function webSearch(pi: ExtensionAPI): void {
 			name: "web_fetch",
 			label: "Web Fetch",
 			description:
-				"Extract excerpts from public http(s) URLs with Parallel. A failed URL is reported as an error line.",
-			promptSnippet: "Extract excerpts from URLs with Parallel",
+				"Extract excerpts from public http(s) URLs with Parallel or Tavily, in webSearch.order. A failed URL is reported as an error line; a failed backend tries the next one.",
+			promptSnippet: "Extract excerpts from URLs with Parallel or Tavily",
 			promptGuidelines: ["Cite the source URLs returned by web_fetch."],
 			defaultActive: false,
 			parameters: Type.Object({
@@ -110,9 +163,7 @@ export default function webSearch(pi: ExtensionAPI): void {
 					Type.String({ description: "What to focus the excerpts on. Omit to return the default excerpts." }),
 				),
 			}),
-			async execute(_id, { urls, objective }, signal) {
-				const apiKey = parallelApiKey();
-				if (!apiKey) throw new Error(parallelAuth);
+			async execute(_id, { urls, objective }, signal, _onUpdate, ctx) {
 				const targets = urls.map((value) => {
 					let url: URL;
 					try {
@@ -126,8 +177,19 @@ export default function webSearch(pi: ExtensionAPI): void {
 					if (url.username || url.password) throw new Error("URL must not include a username or password.");
 					return url.href;
 				});
-				const text = await extractParallel(targets, objective?.trim() || undefined, apiKey, signal);
-				return { content: [{ type: "text", text: limitResult(text) }], details: { backend: "parallel" } };
+				const result = await fetchWeb(
+					targets,
+					objective?.trim() || undefined,
+					pi.getSettings().webSearch?.order,
+					ctx.modelRegistry,
+					signal,
+				);
+				return {
+					content: [{ type: "text", text: limitResult(result.text) }],
+					details: result.fallbackFrom
+						? { backend: result.backend, fallbackFrom: result.fallbackFrom }
+						: { backend: result.backend },
+				};
 			},
 		}),
 	);
@@ -158,9 +220,8 @@ export default function webSearch(pi: ExtensionAPI): void {
 					}),
 				),
 			}),
-			async execute(_id, { query, effort, previous_response_id }, signal) {
-				const apiKey = parallelApiKey();
-				if (!apiKey) throw new Error(parallelAuth);
+			async execute(_id, { query, effort, previous_response_id }, signal, _onUpdate, ctx) {
+				const apiKey = await searchKey(ctx.modelRegistry, "parallel");
 				if (!query.trim()) throw new Error("Research query must not be blank.");
 				const text = await researchParallel(query, effort ?? "medium", previous_response_id, apiKey, signal);
 				return { content: [{ type: "text", text: limitResult(text) }], details: { backend: "parallel" } };
@@ -174,9 +235,14 @@ export default function webSearch(pi: ExtensionAPI): void {
 		const defaultTools = pi.getSettings().defaultTools ?? [];
 		const optedOut = (name: string) => defaultTools.lastIndexOf(`-${name}`) > defaultTools.lastIndexOf(`+${name}`);
 		let changed = false;
-		const hasParallel = parallelApiKey() !== undefined;
+		const order = pi.getSettings().webSearch?.order;
+		const auth = ctx.modelRegistry;
+		const hasParallel = auth.getProviderAuthStatus("parallel").configured;
 		for (const tool of searchTools) {
-			const supported = tool.resolve(ctx.model?.provider) !== undefined && !optedOut(tool.name);
+			const supported =
+				(tool.name === "web_search"
+					? resolveWebSearch(ctx.model?.provider, order, auth)
+					: tool.resolve(ctx.model?.provider)) !== undefined && !optedOut(tool.name);
 			if (supported && !active.includes(tool.name)) {
 				active = [...active, tool.name];
 				changed = true;
@@ -186,7 +252,7 @@ export default function webSearch(pi: ExtensionAPI): void {
 			}
 		}
 		for (const name of parallelToolNames) {
-			const supported = hasParallel && !optedOut(name);
+			const supported = (name === "web_fetch" ? webFetchAvailable(order, auth) : hasParallel) && !optedOut(name);
 			if (supported && !active.includes(name)) {
 				active = [...active, name];
 				changed = true;
@@ -196,9 +262,18 @@ export default function webSearch(pi: ExtensionAPI): void {
 			}
 		}
 		if (changed) pi.setActiveTools(active);
+		seenLogins = loginState(ctx);
 	};
+	const loginState = (ctx: ExtensionContext) =>
+		["parallel", "tavily"].map((id) => ctx.modelRegistry.getProviderAuthStatus(id).configured).join();
+	let seenLogins: string | undefined;
 	pi.on("session_start", (_event, ctx) => synchronize(ctx));
 	pi.on("model_select", (_event, ctx) => synchronize(ctx));
 	// /tree restores the branch's recorded tools but keeps the current model.
 	pi.on("session_tree", (_event, ctx) => synchronize(ctx));
+	// /login does not emit model_select. Sync only when that login state changed, so a manual disable stays off.
+	pi.on("before_agent_start", (_event, ctx) => {
+		const next = loginState(ctx);
+		if (next !== seenLogins) synchronize(ctx);
+	});
 }
