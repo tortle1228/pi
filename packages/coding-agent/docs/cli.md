@@ -151,7 +151,7 @@ The MCP resource tools (`list_mcp_resources`, `list_mcp_resource_templates`, `re
 | `find` | Find paths using glob patterns |
 | `ls` | List directory contents |
 
-Built-in extensions add `tasks` (on by default), `web_search` (on when the selected provider supports it, or after `/login parallel`, `/login tavily`, `/login exa`, or `/login firecrawl`; see [Web Search](web-search.md)), `x_search` (on for xAI), `web_fetch` (on when Parallel, Tavily, Exa, or Firecrawl is logged in), `web_research` (on after `/login parallel`), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
+Built-in extensions add `tasks` (on by default), `terminal` (on when tmux or herdr-core is available; see [Terminals](#terminals)), `web_search` (on when the selected provider supports it, or after `/login parallel`, `/login tavily`, `/login exa`, or `/login firecrawl`; see [Web Search](web-search.md)), `x_search` (on for xAI), `web_fetch` (on when Parallel, Tavily, Exa, or Firecrawl is logged in), `web_research` (on after `/login parallel`), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
 
 | Built-in extension | Purpose |
 |---|---|
@@ -161,6 +161,7 @@ Built-in extensions add `tasks` (on by default), `web_search` (on when the selec
 | `web_fetch` | Extract excerpts from URLs with Parallel, Tavily, Exa, or Firecrawl, in `webSearch.order` |
 | `web_research` | Answer a question from the web with Parallel and return citations |
 | `x_search` | Search posts on X with the selected xAI model and return source links |
+| `terminal` | Drive interactive programs in tmux or herdr terminals the user can watch, with tmux-style commands |
 
 ### Enable codemode
 
@@ -191,6 +192,17 @@ The `tasks` tool starts background shell commands with `start` and returns a tas
 `start` requires the `bash` tool to be active, so disabling `bash` also stops new tasks. Extensions that inspect shell commands in `tool_call` by checking for `bash` do not see task commands; they must also check `tasks`.
 
 Tasks stop and their logs are deleted when the session ends or is replaced by `/reload`, `/new`, `/resume`, or `/fork`. Tasks also stop at the configured time and log-size limits. When a task ends on its own, Pi records a `task-ended` message without starting a new turn. A task cancelled explicitly or awaited by `output` does not send a separate completion message. Tasks are not restored after restart.
+
+### Terminals
+
+The `terminal` tool takes a tmux command and its argv: `new-window [-n name] [-c dir] [command ...]`, `list-windows`, `send-keys -t T [-l] key ...`, `read -t T`, `capture-pane -t T [-S -N] [-e]`, and `kill-window -t T`. `new-window`, `send-keys`, and `read` return the output since the last read of that window after waiting: `-w quiet` (0.5 s without output; the default of `new-window` and `send-keys`), `-w exit`, `-w /regex/`, or `-w none` (the default of `read`), with `-T` seconds of timeout (at most 120). A full-screen program returns its screen instead.
+
+`terminalTool.backends` orders the backends; the first available one runs the terminals. The default is `["tmux", "herdr"]`.
+
+- `tmux`: needs `tmux` on `PATH`. Each Pi session gets a tmux session `pi-<last 8 hex digits of the session id>` on the default server; find it with `tmux ls` and watch with `tmux attach -t <name>`. Windows you open there yourself are listed as opened by the user.
+- `herdr`: needs Pi to run in a herdr-core terminal (`HC_TERMINAL_SOCKET` set) and `hc` on `PATH`. Windows are child terminals of Pi's terminal and show in herdr's sidebar. hc cannot type arbitrary text without Enter, so `send-keys` text must end with `Enter` or use only letters, digits, spaces and ``-/.,=[];'\` ``. Text followed by `Enter` is pasted, which full-screen programs such as vim may insert as text, and hc's key delivery to such programs is unreliable, so prefer tmux for them. `hc read` drops trailing spaces, so a `-w /regex/` cannot match a prompt's trailing space. `-e` and full-screen detection are not supported.
+
+Without any available backend the tool is not registered. A session's terminals end when the session ends or is replaced by `/reload`, `/new`, `/resume`, or `/fork`.
 
 ### Tool search
 

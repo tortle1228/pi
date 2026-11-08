@@ -7,6 +7,7 @@ import mcpExtension from "./mcp/index.ts";
 import planModeExtension from "./plan-mode/index.ts";
 import requestUserInputExtension from "./request-user-input/index.ts";
 import tasksExtension from "./tasks/index.ts";
+import terminalExtension from "./terminal/index.ts";
 import toolSearchExtension from "./tool-search/index.ts";
 import webSearchExtension from "./web-search/index.ts";
 import worktreeExtension from "./worktree/index.ts";
@@ -24,5 +25,6 @@ export const builtInExtensions: InlineExtension[] = [
 	{ name: "tool-search", factory: toolSearchExtension, replaceable: true, builtin: true },
 	{ name: "web-search", factory: webSearchExtension, replaceable: true, builtin: true },
 	{ name: "tasks", factory: tasksExtension, replaceable: true, builtin: true },
+	{ name: "terminal", factory: terminalExtension, replaceable: true, builtin: true },
 	{ name: "mcp", factory: mcpExtension, replaceable: true, builtin: true },
 ];

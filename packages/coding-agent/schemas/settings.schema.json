@@ -144,6 +144,11 @@
       ],
       "default": "auto"
     },
+    "imageModel": {
+      "type": "string",
+      "default": "openai-codex/gpt-6-astra",
+      "description": "Image model the generate_image tool uses, as provider/modelId."
+    },
     "fastMode": {
       "anyOf": [
         {
@@ -376,6 +381,31 @@
           "type": "number",
           "minimum": 0,
           "default": 536870912
+        }
+      }
+    },
+    "terminalTool": {
+      "type": "object",
+      "properties": {
+        "backends": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "tmux"
+              },
+              {
+                "type": "string",
+                "const": "herdr"
+              }
+            ]
+          },
+          "description": "Backends of the terminal tool in order of preference; the first one available is used. herdr needs a herdr-core terminal (HC_TERMINAL_SOCKET).",
+          "default": [
+            "tmux",
+            "herdr"
+          ]
         }
       }
     },

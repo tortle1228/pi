@@ -150,6 +150,7 @@ Keep `retry.provider.maxRetries` at `0` unless provider-level retries are requir
 | `shellRedactSecrets` | boolean | `true` | Mask known credentials in shell and task output before display, model responses, and temporary logs. This is best-effort and does not mask commands. Set `false` to preserve raw output. |
 | `tasks.maxRunMinutes` | number | `120` | Maximum run time for a background task; `0` disables the limit, maximum 10080 minutes. |
 | `tasks.maxLogBytes` | number | `536870912` | Maximum streamed output bytes before a task is stopped; `0` disables the limit. |
+| `terminalTool.backends` | `("tmux" \| "herdr")[]` | `["tmux", "herdr"]` | Backends of the `terminal` tool in order of preference; the first available one is used. See [Terminals](cli.md#terminals). |
 | `npmCommand` | `string[]` | `npm` | Command and arguments used for npm package lookup and installation. |
 | `selfUpdateCommand` | `string[]` | None | Command and arguments `pi update` runs to update Pi itself, with `{packageName}`, `{version}`, and `{installSpec}` placeholders. `PI_SELF_UPDATE_COMMAND` takes precedence. **Can only be set in agent-directory settings.** See [Custom update command](cli.md#custom-update-command). |
 

@@ -31,6 +31,7 @@ export const SETTINGS_DEFAULTS = {
 	quietStartup: false,
 	shellRedactSecrets: true,
 	tasks: { maxRunMinutes: 120, maxLogBytes: 536870912 },
+	terminalTool: { backends: ["tmux", "herdr"] as ("tmux" | "herdr")[] },
 	defaultProjectTrust: "ask",
 	collapseChangelog: false,
 	enableInstallTelemetry: true,

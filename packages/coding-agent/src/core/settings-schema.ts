@@ -352,6 +352,17 @@ export const SettingsSchema = Type.Object(
 				maxLogBytes: Type.Optional(Type.Number({ minimum: 0, default: SETTINGS_DEFAULTS.tasks.maxLogBytes })),
 			}),
 		),
+		terminalTool: Type.Optional(
+			Type.Object({
+				backends: Type.Optional(
+					Type.Array(Type.Union([Type.Literal("tmux"), Type.Literal("herdr")]), {
+						description:
+							"Backends of the terminal tool in order of preference; the first one available is used. herdr needs a herdr-core terminal (HC_TERMINAL_SOCKET).",
+						default: SETTINGS_DEFAULTS.terminalTool.backends,
+					}),
+				),
+			}),
+		),
 		shellCommandPrefix: Type.Optional(
 			Type.String({ description: "Prefix prepended to every bash command, for example to enable shell aliases." }),
 		),
