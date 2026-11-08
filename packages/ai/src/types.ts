@@ -92,6 +92,7 @@ export type KnownProvider =
 	| "amazon-bedrock"
 	| "ant-ling"
 	| "anthropic"
+	| "anthropic-api"
 	| "google"
 	| "google-vertex"
 	| "google-antigravity"

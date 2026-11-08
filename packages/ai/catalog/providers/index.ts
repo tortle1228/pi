@@ -4,6 +4,7 @@ import type { ProviderDefinition } from "../define.ts";
 import amazonBedrock from "./amazon-bedrock.ts";
 import antLing from "./ant-ling.ts";
 import anthropic from "./anthropic.ts";
+import anthropicApi from "./anthropic-api.ts";
 import azure from "./azure.ts";
 import baseten from "./baseten.ts";
 import cerebras from "./cerebras.ts";
@@ -50,6 +51,7 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
 	amazonBedrock,
 	antLing,
 	anthropic,
+	anthropicApi,
 	azure,
 	baseten,
 	cerebras,

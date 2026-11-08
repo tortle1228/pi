@@ -32,7 +32,7 @@ This table covers providers with a single primary API-key variable. Providers th
 
 | Provider | Environment variable |
 |---|---|
-| Anthropic | `ANTHROPIC_API_KEY` |
+| Anthropic API (`anthropic-api`) | `ANTHROPIC_API_KEY` |
 | Ant Ling | `ANT_LING_API_KEY` |
 | OpenAI | `OPENAI_API_KEY` |
 | DeepSeek | `DEEPSEEK_API_KEY` |
@@ -66,9 +66,9 @@ This table covers providers with a single primary API-key variable. Providers th
 | Xiaomi MiMo Token Plan (Amsterdam) | `XIAOMI_TOKEN_PLAN_AMS_API_KEY` |
 | Xiaomi MiMo Token Plan (Singapore) | `XIAOMI_TOKEN_PLAN_SGP_API_KEY` |
 
-Anthropic also recognizes `ANTHROPIC_OAUTH_TOKEN` as an API credential and `ANTHROPIC_AUTH_TOKEN` as bearer authentication.
+`anthropic-api` also recognizes `ANTHROPIC_AUTH_TOKEN` as bearer authentication. The `anthropic` provider is the Claude Pro/Max subscription (login or `ANTHROPIC_OAUTH_TOKEN`).
 
-With no key or token set, Anthropic uses workload identity federation when `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID` and `ANTHROPIC_IDENTITY_TOKEN_FILE` are set: the Anthropic SDK exchanges the identity token for a short-lived access token and refreshes it itself (re-reading the identity token file, so keep that file fresh for long sessions). `ANTHROPIC_SERVICE_ACCOUNT_ID` and `ANTHROPIC_WORKSPACE_ID` are passed through when set.
+With no key or token set, `anthropic-api` uses workload identity federation when `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID` and `ANTHROPIC_IDENTITY_TOKEN_FILE` are set: the Anthropic SDK exchanges the identity token for a short-lived access token and refreshes it itself (re-reading the identity token file, so keep that file fresh for long sessions). `ANTHROPIC_SERVICE_ACCOUNT_ID` and `ANTHROPIC_WORKSPACE_ID` are passed through when set.
 
 ## Load an API key from a command
 
@@ -76,7 +76,7 @@ To use a secret manager without writing the resolved key to disk, set a provider
 
 ```json
 {
-  "anthropic": {
+  "anthropic-api": {
     "type": "api_key",
     "key": "!security find-generic-password -ws 'anthropic'"
   }

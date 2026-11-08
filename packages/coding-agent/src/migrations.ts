@@ -5,6 +5,7 @@
 import chalk from "chalk";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
+import lockfile from "proper-lockfile";
 import { CONFIG_DIR_NAME, getAgentDir, getBinDir } from "./config.ts";
 import { migrateKeybindingsConfig } from "./core/keybindings.ts";
 import { stripBom } from "./utils/text.ts";
@@ -70,6 +71,27 @@ export function migrateAuthToAuthJson(): string[] {
 	}
 
 	return providers;
+}
+
+/** Move a stored Anthropic API key from `anthropic` (now subscription-only) to `anthropic-api`. */
+export function migrateAnthropicApiKeyCredential(): void {
+	const authPath = join(getAgentDir(), "auth.json");
+	if (!existsSync(authPath)) return;
+	try {
+		// Same lock AuthStorage uses, so a concurrent OAuth refresh is not overwritten.
+		const release = lockfile.lockSync(authPath);
+		try {
+			const auth = JSON.parse(stripBom(readFileSync(authPath, "utf-8")));
+			if (auth.anthropic?.type !== "api_key" || auth["anthropic-api"]) return;
+			auth["anthropic-api"] = auth.anthropic;
+			delete auth.anthropic;
+			writeFileSync(authPath, JSON.stringify(auth, null, 2), { mode: 0o600 });
+		} finally {
+			release();
+		}
+	} catch {
+		// Skip on error
+	}
 }
 
 /**
@@ -307,6 +329,7 @@ export function runMigrations(cwd: string): {
 	deprecationWarnings: string[];
 } {
 	const migratedAuthProviders = migrateAuthToAuthJson();
+	migrateAnthropicApiKeyCredential();
 	migrateSessionsFromAgentRoot();
 	migrateToolsToBin();
 	migrateKeybindingsConfigFile();

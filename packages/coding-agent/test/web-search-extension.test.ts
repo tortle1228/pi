@@ -121,6 +121,7 @@ describe("provider-aware web_search", () => {
 		h.emit("model_select", context("anthropic"));
 		expect(h.active()).toEqual(["read", "bash", "web_search"]);
 		expect(getSearchBackend("anthropic")).toBeDefined();
+		expect(getSearchBackend("anthropic-api")).toBeDefined();
 		h.emit("model_select", context("zai"));
 		expect(h.active()).toEqual(["read", "bash", "web_search"]);
 		h.emit("model_select", context());

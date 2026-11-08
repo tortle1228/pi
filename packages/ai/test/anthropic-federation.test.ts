@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { stream as streamAnthropic } from "../src/api/anthropic-messages.ts";
 import { createModels } from "../src/models.ts";
-import { anthropicProvider } from "../src/providers/anthropic.ts";
+import { anthropicApiProvider } from "../src/providers/anthropic-api.ts";
 import type { Model } from "../src/types.ts";
 import { normalizeContext } from "../src/utils/transcript.ts";
 
@@ -78,7 +78,7 @@ const anthropicModel: Model<"anthropic-messages"> = {
 	id: "claude-test",
 	name: "Claude Test",
 	api: "anthropic-messages",
-	provider: "anthropic",
+	provider: "anthropic-api",
 	baseUrl: "https://api.anthropic.com",
 	reasoning: false,
 	input: ["text"],
@@ -88,7 +88,7 @@ const anthropicModel: Model<"anthropic-messages"> = {
 };
 
 function resolveWithEnv(env: Record<string, string>) {
-	return anthropicProvider().auth.apiKey?.resolve({
+	return anthropicApiProvider().auth.apiKey?.resolve({
 		ctx: { env: async (name) => env[name], fileExists: async () => false },
 		signal: neverAbortedSignal,
 	});
@@ -163,7 +163,7 @@ describe("Anthropic workload identity federation", () => {
 				fileExists: async () => false,
 			},
 		});
-		models.setProvider(anthropicProvider());
+		models.setProvider(anthropicApiProvider());
 
 		await models.streamSimple(anthropicModel, context).result();
 

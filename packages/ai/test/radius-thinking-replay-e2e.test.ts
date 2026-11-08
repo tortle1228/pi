@@ -35,7 +35,7 @@ import type { Api, AssistantMessage, Context, Message, Model, Tool, ToolResultMe
 import { resolveApiKey } from "./oauth.ts";
 
 const radiusKey = process.env.RADIUS_API_KEY ?? (await resolveApiKey("radius"));
-const anthropicKey = getEnvApiKey("anthropic") ?? (await resolveApiKey("anthropic"));
+const anthropicKey = getEnvApiKey("anthropic-api") ?? (await resolveApiKey("anthropic"));
 
 const tool: Tool = {
 	name: "lookup",

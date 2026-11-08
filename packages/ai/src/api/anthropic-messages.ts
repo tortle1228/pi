@@ -244,7 +244,8 @@ function getAnthropicCompat(model: Model<"anthropic-messages">) {
 		// Widen or remove this restriction once proxies generally forward the `thread` field.
 		supportsMessageThreads:
 			model.compat?.supportsMessageThreads ??
-			(model.provider === "anthropic" && model.baseUrl.includes("api.anthropic.com")),
+			((model.provider === "anthropic" || model.provider === "anthropic-api") &&
+				model.baseUrl.includes("api.anthropic.com")),
 	};
 }
 
@@ -578,7 +579,7 @@ type AnthropicFederationConfig = NonNullable<ClientOptions["config"]>;
 /**
  * Workload identity federation config from the ANTHROPIC_* variables the
  * Anthropic SDK documents; the SDK performs the token exchange and refresh.
- * Only for the anthropic provider, since the exchange is an Anthropic API
+ * Only for the anthropic-api provider, since the exchange is an Anthropic API
  * endpoint, and only when no key or auth header was resolved.
  */
 function getAnthropicFederation(
@@ -587,7 +588,7 @@ function getAnthropicFederation(
 	headers: ProviderHeaders | undefined,
 	env: ProviderEnv | undefined,
 ): AnthropicFederationConfig | undefined {
-	if (model.provider !== "anthropic" || hasRequestAuth(apiKey, headers)) return undefined;
+	if (model.provider !== "anthropic-api" || hasRequestAuth(apiKey, headers)) return undefined;
 	const federationRuleId = getProviderEnvValue(ANTHROPIC_FEDERATION_RULE_ID_ENV, env);
 	const organizationId = getProviderEnvValue(ANTHROPIC_ORGANIZATION_ID_ENV, env);
 	const identityTokenFile = getProviderEnvValue(ANTHROPIC_IDENTITY_TOKEN_FILE_ENV, env);

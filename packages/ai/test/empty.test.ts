@@ -227,7 +227,7 @@ describe("AI Providers Empty Message Tests", () => {
 	});
 
 	describe.skipIf(!process.env.ANTHROPIC_API_KEY)("Anthropic Provider Empty Messages", () => {
-		const llm = getModel("anthropic", "claude-haiku-4-5");
+		const llm = getModel("anthropic-api", "claude-haiku-4-5");
 
 		it("should handle empty content array", { retry: 3, timeout: 30000 }, async () => {
 			await testEmptyMessage(llm);

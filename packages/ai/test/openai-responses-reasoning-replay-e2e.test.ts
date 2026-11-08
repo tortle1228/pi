@@ -188,10 +188,10 @@ describe.skipIf(!process.env.OPENAI_API_KEY || !process.env.ANTHROPIC_API_KEY)(
 			// 4. Tool call ID is Anthropic format (toolu_xxx), no OpenAI pairing history
 			// 5. Should work because foreign IDs have no pairing expectation
 
-			const anthropicModel = getModel("anthropic", "claude-sonnet-4-5");
+			const anthropicModel = getModel("anthropic-api", "claude-sonnet-4-5");
 			const codexModel = getModel("openai", "gpt-5.5");
 
-			const anthropicApiKey = getEnvApiKey("anthropic");
+			const anthropicApiKey = getEnvApiKey("anthropic-api");
 			const openaiApiKey = getEnvApiKey("openai");
 			if (!anthropicApiKey || !openaiApiKey) {
 				throw new Error("Missing API keys");

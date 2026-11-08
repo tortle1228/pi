@@ -11,7 +11,7 @@ export async function searchAnthropic(
 	signal?: AbortSignal,
 ): Promise<SearchResult> {
 	const model = ctx.model;
-	if (!model || model.provider !== "anthropic") {
+	if (!model || (model.provider !== "anthropic" && model.provider !== "anthropic-api")) {
 		throw new Error("Anthropic search requires the anthropic provider.");
 	}
 	const cancellation = AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(60_000)]);

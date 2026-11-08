@@ -29,6 +29,7 @@ const backends: Readonly<Record<string, SearchBackend>> = {
 	openai: { search: searchOpenAI },
 	"openai-codex": { search: searchOpenAI },
 	anthropic: { search: searchAnthropic },
+	"anthropic-api": { search: searchAnthropic },
 	"google-antigravity": { search: searchAntigravity },
 	xai: { search: searchXai },
 };

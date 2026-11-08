@@ -3,6 +3,7 @@ import { stream as streamAnthropic } from "../src/api/anthropic-messages.ts";
 import { ANTHROPIC_AUTH_TOKEN_ENV, ANTHROPIC_OAUTH_TOKEN_ENV } from "../src/env-api-keys.ts";
 import { createModels } from "../src/models.ts";
 import { anthropicProvider } from "../src/providers/anthropic.ts";
+import { anthropicApiProvider } from "../src/providers/anthropic-api.ts";
 import type { Model } from "../src/types.ts";
 import { formatUserAgent } from "../src/utils/identity.ts";
 import { normalizeContext } from "../src/utils/transcript.ts";
@@ -67,7 +68,7 @@ const anthropicModel: Model<"anthropic-messages"> = {
 	id: "claude-test",
 	name: "Claude Test",
 	api: "anthropic-messages",
-	provider: "anthropic",
+	provider: "anthropic-api",
 	baseUrl: "https://api.anthropic.com",
 	reasoning: false,
 	input: ["text"],
@@ -91,7 +92,7 @@ afterEach(() => {
 
 describe("Anthropic auth token env", () => {
 	it("resolves ANTHROPIC_AUTH_TOKEN as a bearer Authorization header", async () => {
-		const provider = anthropicProvider();
+		const provider = anthropicApiProvider();
 		const auth = await provider.auth.apiKey?.resolve({
 			ctx: {
 				env: async (name) =>
@@ -111,14 +112,13 @@ describe("Anthropic auth token env", () => {
 		});
 	});
 
-	it("preserves ANTHROPIC_OAUTH_TOKEN as OAuth-shaped API auth", async () => {
+	it("preserves ANTHROPIC_OAUTH_TOKEN as OAuth-shaped API auth on the subscription provider", async () => {
 		const provider = anthropicProvider();
 		const auth = await provider.auth.apiKey?.resolve({
 			ctx: {
 				env: async (name) =>
 					({
 						ANTHROPIC_OAUTH_TOKEN: "oauth-token",
-						ANTHROPIC_API_KEY: "api-key",
 					})[name],
 				fileExists: async () => false,
 			},
@@ -152,7 +152,7 @@ describe("Anthropic auth token env", () => {
 				fileExists: async () => false,
 			},
 		});
-		models.setProvider(anthropicProvider());
+		models.setProvider(anthropicApiProvider());
 
 		await models.streamSimple(anthropicModel, context).result();
 
@@ -173,7 +173,7 @@ describe("Anthropic auth token env", () => {
 		});
 		models.setProvider(anthropicProvider());
 
-		await models.streamSimple(anthropicModel, context).result();
+		await models.streamSimple({ ...anthropicModel, provider: "anthropic" }, context).result();
 
 		expect(mockState.constructorOpts?.apiKey).toBeNull();
 		expect(mockState.constructorOpts?.authToken).toBe("sk-ant-oat-test");
@@ -187,7 +187,7 @@ describe("Anthropic auth token env", () => {
 				fileExists: async () => false,
 			},
 		});
-		models.setProvider(anthropicProvider());
+		models.setProvider(anthropicApiProvider());
 
 		await models
 			.streamSimple(anthropicModel, context, { headers: { Authorization: "Bearer explicit-token" } })

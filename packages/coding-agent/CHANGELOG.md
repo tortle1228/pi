@@ -4,6 +4,7 @@
 
 ### Breaking Changes
 
+- Split Anthropic into two providers. `anthropic` is now subscription-only (Claude Pro/Max login or `ANTHROPIC_OAUTH_TOKEN`); API keys use the new `anthropic-api` provider. A stored API key in `auth.json` moves automatically; update `defaultProvider`, `enabledModels` and other `anthropic/...` references for API-key use to `anthropic-api/...`.
 - `Shift+Tab` now switches between Plan and Build mode (`app.mode.cycle`). Thinking level cycling moved to `Ctrl+T`, and the thinking block toggle has no default key.
 - Removed `readFile` from `GrepOperations`. The grep tool now takes context lines from ripgrep and no longer reads matched files itself. To search a remote system, override grep's `execute()`; see [Remote Execution](docs/extensions.md#remote-execution) ([#9276](https://github.com/earendil-works/pi/issues/9276))
 

@@ -115,6 +115,12 @@ async function fixture() {
 }
 
 describe("Anthropic search", () => {
+	it("accepts the anthropic-api provider", async () => {
+		const f = await fixture();
+		const ctx = { ...f.ctx, model: { ...f.ctx.model!, provider: "anthropic-api" } } as ExtensionContext;
+		expect((await searchAnthropic("latest docs", ctx)).backend).toBe("anthropic");
+	});
+
 	it("uses anthropic credentials, the selected model, and preserves sources", async () => {
 		const f = await fixture();
 		const result = await searchAnthropic("latest docs", f.ctx);
