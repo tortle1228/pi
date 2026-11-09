@@ -304,15 +304,27 @@ export class FooterComponent implements Component {
 		const pwdLine = this.withModeIndicator(pwd, width);
 		const lines = [pwdLine, dimStatsLeft + dimRemainder];
 
-		// Add extension statuses on a single line, sorted by key alphabetically
+		// Add extension statuses on a single line, sorted by key alphabetically; right-aligned ones go to the end
 		const extensionStatuses = this.footerData.getExtensionStatuses();
 		if (extensionStatuses.size > 0) {
-			const sortedStatuses = Array.from(extensionStatuses.entries())
-				.sort(([a], [b]) => a.localeCompare(b))
-				.map(([, text]) => sanitizeStatusText(text));
-			const statusLine = sortedStatuses.join(" ");
-			// Truncate to terminal width with dim ellipsis for consistency with footer style
-			lines.push(truncateToWidth(statusLine, width, theme.fg("dim", "...")));
+			const left: string[] = [];
+			const right: string[] = [];
+			for (const [key, text] of Array.from(extensionStatuses.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+				(this.footerData.isExtensionStatusRightAligned(key) ? right : left).push(sanitizeStatusText(text));
+			}
+			const ellipsis = theme.fg("dim", "...");
+			const rightText = truncateToWidth(right.join(" "), width, ellipsis);
+			const rightWidth = visibleWidth(rightText);
+			if (rightWidth === 0) {
+				// Truncate to terminal width with dim ellipsis for consistency with footer style
+				lines.push(truncateToWidth(left.join(" "), width, ellipsis));
+			} else {
+				// Keep the right side whole and shorten the left side to fit next to it.
+				const available = width - rightWidth - 2;
+				const leftText =
+					left.length > 0 && available > 0 ? truncateToWidth(left.join(" "), available, ellipsis) : "";
+				lines.push(leftText + " ".repeat(Math.max(0, width - visibleWidth(leftText) - rightWidth)) + rightText);
+			}
 		}
 
 		return lines;
