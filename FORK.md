@@ -20,6 +20,7 @@ A ported change that touches one of these needs the feature's tests too (see the
 | OpenAI/Codex fast and ultrafast modes, 922K input limits | `packages/ai/test/supports-xhigh.test.ts` |
 | `anthropic-api` / `anthropic` provider split, subscription plan limits | `packages/ai/test`, `packages/coding-agent/test` (grep `anthropic-api`) |
 | Antigravity provider | `packages/ai/test` (grep `antigravity`) |
+| EXAONE provider (`exaone`, `EXAONE_API_KEY`) | `packages/ai/test/stream.test.ts` (grep `exaone`) |
 | Web search/fetch backends: Anthropic, xAI, Parallel, Tavily, Exa, Firecrawl, Antigravity | `packages/coding-agent/test` (grep `web-search`) |
 | Git worktrees: `--worktree`, `/worktree`, `enter_worktree`, cleanup on quit | `packages/coding-agent/test/worktree.test.ts`, `packages/coding-agent/test/worktree-cli.test.ts`, `packages/coding-agent/test/suite/agent-session-worktree.test.ts`, `packages/coding-agent/test/args.test.ts` |
 | Codex image generation: `openai-codex-images` API, `generate_image` tool, `imageModel` setting | `packages/ai/test/openai-codex-images.test.ts`, `packages/coding-agent/test/image-extension.test.ts` |
