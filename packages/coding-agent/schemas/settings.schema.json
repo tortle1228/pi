@@ -368,6 +368,11 @@
       "type": "boolean",
       "default": true
     },
+    "youShouldKnow": {
+      "type": "boolean",
+      "description": "Run a side agent every six steps that flags one thing you should know. Each check costs one extra model request.",
+      "default": false
+    },
     "tasks": {
       "type": "object",
       "properties": {
@@ -731,6 +736,11 @@
       ],
       "description": "Horizontal padding for transcript content.",
       "default": 1
+    },
+    "maxProseWidth": {
+      "type": "number",
+      "description": "Maximum width in terminal columns for prose in assistant responses; 0 disables the cap.",
+      "default": 0
     },
     "autocompleteMaxVisible": {
       "type": "number",

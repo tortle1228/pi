@@ -24,6 +24,7 @@ A ported change that touches one of these needs the feature's tests too (see the
 | Git worktrees: `--worktree`, `/worktree`, `enter_worktree`, cleanup on quit | `packages/coding-agent/test/worktree.test.ts`, `packages/coding-agent/test/worktree-cli.test.ts`, `packages/coding-agent/test/suite/agent-session-worktree.test.ts`, `packages/coding-agent/test/args.test.ts` |
 | Codex image generation: `openai-codex-images` API, `generate_image` tool, `imageModel` setting | `packages/ai/test/openai-codex-images.test.ts`, `packages/coding-agent/test/image-extension.test.ts` |
 | Background tasks, shell secret redaction, Claude memory extension | `packages/coding-agent/test` (grep `tasks`, `redact`, `memory`) |
+| You should know side agent (`youShouldKnow`, `/you-should-know`) | `packages/coding-agent/test/you-should-know.test.ts`, `packages/coding-agent/test/suite/agent-session-you-should-know.test.ts` |
 | `terminal` tool (tmux-style commands, tmux and herdr-core backends, `terminalTool.backends`) | `packages/coding-agent/test/terminal-tool.test.ts`, `packages/coding-agent/test/terminal-commands.test.ts` |
 
 Removed from this fork; never port changes back into them: CHANGELOGs and `/changelog`, upstream contribution files, `durable`, `storage`, `env`, P2, P3, Chord and other apps. Exception: P2's agent `terminal` tool (`apps/p2/plugins/terminals/{commands,tool}.ts`) is ported into `packages/coding-agent/src/extensions/terminal/`; upstream changes to those two files may be ported there.

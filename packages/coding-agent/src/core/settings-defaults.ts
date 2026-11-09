@@ -30,6 +30,7 @@ export const SETTINGS_DEFAULTS = {
 	showCacheMissNotices: false,
 	quietStartup: false,
 	shellRedactSecrets: true,
+	youShouldKnow: false,
 	tasks: { maxRunMinutes: 120, maxLogBytes: 536870912 },
 	terminalTool: { backends: ["tmux", "herdr"] as ("tmux" | "herdr")[] },
 	defaultProjectTrust: "ask",
