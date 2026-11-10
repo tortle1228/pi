@@ -28,7 +28,8 @@ export class TmuxBackend implements TerminalBackend {
 	}
 
 	private tmux(args: string[], signal?: AbortSignal): Promise<string> {
-		return execText("tmux", args, signal);
+		// -u: without a UTF-8 locale (LC_ALL=C) tmux prints the tabs in FORMAT as "_".
+		return execText("tmux", ["-u", ...args], signal);
 	}
 
 	private async hasSession(signal?: AbortSignal): Promise<boolean> {
