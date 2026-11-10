@@ -19,6 +19,7 @@ import {
 } from "../src/providers/all.ts";
 import { amazonBedrockProvider } from "../src/providers/amazon-bedrock.ts";
 import { anthropicProvider } from "../src/providers/anthropic.ts";
+import { anthropicApiProvider } from "../src/providers/anthropic-api.ts";
 import { cloudflareAIGatewayProvider } from "../src/providers/cloudflare-ai-gateway.ts";
 import { cloudflareWorkersAIProvider } from "../src/providers/cloudflare-workers-ai.ts";
 import { fauxAssistantMessage, fauxProvider } from "../src/providers/faux.ts";
@@ -284,7 +285,7 @@ describe("builtin providers", () => {
 		}
 	});
 
-	it("resolves Anthropic bearer auth from env with auth token precedence", async () => {
+	it("resolves Anthropic API bearer auth from env with auth token precedence", async () => {
 		const models = createModels({
 			authContext: fakeAuthContext({
 				ANTHROPIC_AUTH_TOKEN: "auth-token",
@@ -292,9 +293,9 @@ describe("builtin providers", () => {
 				ANTHROPIC_API_KEY: "api-key",
 			}),
 		});
-		models.setProvider(anthropicProvider());
+		models.setProvider(anthropicApiProvider());
 
-		expect(await models.getAuth("anthropic")).toEqual({
+		expect(await models.getAuth("anthropic-api")).toEqual({
 			auth: { headers: { Authorization: "Bearer auth-token" } },
 			source: "ANTHROPIC_AUTH_TOKEN",
 		});

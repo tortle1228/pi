@@ -161,6 +161,8 @@ if (process.platform !== "win32") fs.chmodSync(piPath, 0o755);
 			return undefined as never;
 		}) as typeof process.exit);
 		process.env[ENV_AGENT_DIR] = agentDir;
+		// Keep the real ~/.agents/skills out of resolved resources.
+		vi.stubEnv("HOME", tempDir);
 		process.chdir(projectDir);
 	});
 

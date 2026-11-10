@@ -62,7 +62,8 @@ describe("config value env var syntax migration", () => {
 			string,
 			Record<string, unknown>
 		>;
-		expect(migrated.anthropic.key).toBe("ANTHROPIC_API_KEY");
+		// The anthropic API key moves to anthropic-api (anthropic is subscription-only); its value stays as written.
+		expect(migrated["anthropic-api"].key).toBe("ANTHROPIC_API_KEY");
 		expect(migrated.openai.key).toBe("$OPENAI_API_KEY");
 		expect(migrated.opencode.key).toBe("public");
 		expect(migrated.github.access).toBe("ACCESS_TOKEN");
