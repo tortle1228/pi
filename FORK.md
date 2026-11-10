@@ -33,9 +33,9 @@ Removed from this fork; never port changes back into them: CHANGELOGs and `/chan
 
 ## Sync Log
 
-### 2026-11: `5ea81d2cd..dd30101cf` (v1.5.1, 56 commits plus 6 deferred, 17 ported)
+### 2026-11: `5ea81d2cd..dd30101cf` (v1.5.1, 56 commits plus 6 deferred, 18 ported)
 
-Package versions stay at 1.5.0: the fork is used locally only, and this ledger records the upstream base.
+Package versions follow the upstream release the fork is based on (1.5.1), so the startup version check does not offer upstream 1.5.1; this ledger records how the fork differs.
 
 Ported unchanged (CHANGELOG hunks dropped): `af79b0c3d`, `55a5c6914`, `36142c1c7`, `8a19e8c4a`, `5c808e17b`, `566344046` (previously deferred); `33cd7e507`, `a77207d9c`, `45344bd3a`, `ea1cfcc4c`, `6382d8706`, `c9dd2c530`, `244e5f5db`, `463b8f893`, `a07f25129`.
 
@@ -43,12 +43,12 @@ Adapted:
 
 - `7bcc15c92` (cacheWarming default `idle`): conflict with the fork's `webSearch` defaults resolved by hand.
 - `0d1793c2b` (Claude Fable 5.2): added in `defineAnthropicProvider`, so `anthropic` and `anthropic-api` both get it.
+- `dd30101cf` (Release v1.5.1): package versions, internal dependency versions and lockfiles only; CHANGELOG, removed packages and the Nix model catalog pin dropped.
 
 Skipped:
 
 - 39 not applicable: P2, P3, Chord, Durable and their docs.
 - 4 docs: changelog and doc-only changes (`e370b44b5`, `77959d667`, `6a1703946`, `9abcd30f6`).
-- 1 release: `dd30101cf` (version bump; versions stay as they are).
 - 1 skipped: `683a7a868` (partner providers first in `/login`; partner promotion, conflicts with the fork's provider split).
 
 ### 2026-11: `469d8651b..5ea81d2cd` (123 commits, 13 ported)
