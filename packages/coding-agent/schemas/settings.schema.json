@@ -368,6 +368,11 @@
       "type": "boolean",
       "default": true
     },
+    "youShouldKnow": {
+      "type": "boolean",
+      "description": "Run a side agent every six steps that flags one thing you should know. Each check costs one extra model request.",
+      "default": false
+    },
     "tasks": {
       "type": "object",
       "properties": {
@@ -884,7 +889,7 @@
         }
       ],
       "description": "Cache-warming profile. \"idle\" also warms between agent runs. Global only because each refresh costs money.",
-      "default": "streaming"
+      "default": "idle"
     },
     "websocketConnectTimeoutMs": {
       "anyOf": [

@@ -178,8 +178,8 @@ export interface ExtensionUIContext {
 	/** Listen to raw terminal input (interactive mode only). Returns an unsubscribe function. */
 	onTerminalInput(handler: TerminalInputHandler): () => void;
 
-	/** Set status text in the footer/status bar. Pass undefined to clear. */
-	setStatus(key: string, text: string | undefined): void;
+	/** Set status text in the footer/status bar. Pass undefined to clear. `align: "right"` puts it at the right end of the status line. */
+	setStatus(key: string, text: string | undefined, options?: { align?: "left" | "right" }): void;
 
 	/** Set the working/loading message shown during streaming. Call with no argument to restore default. */
 	setWorkingMessage(message?: string): void;
@@ -938,6 +938,8 @@ export interface BeforeProviderHeadersEvent {
 /** Fired after a provider response is received and before the response stream is consumed. */
 export interface AfterProviderResponseEvent {
 	type: "after_provider_response";
+	provider: ProviderId;
+	model: string;
 	status: number;
 	headers: Record<string, string>;
 }

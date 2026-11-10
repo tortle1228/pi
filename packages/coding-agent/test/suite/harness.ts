@@ -208,13 +208,15 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 			}
 			return runner.emitBeforeProviderRequest(payload);
 		},
-		onResponse: async (response) => {
+		onResponse: async (response, model) => {
 			const runner = extensionRunnerRef.current;
 			if (!runner?.hasHandlers("after_provider_response")) {
 				return;
 			}
 			await runner.emit({
 				type: "after_provider_response",
+				provider: model.provider,
+				model: model.id,
 				status: response.status,
 				headers: response.headers,
 			});

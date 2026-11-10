@@ -344,6 +344,13 @@ export const SettingsSchema = Type.Object(
 			}),
 		),
 		shellRedactSecrets: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.shellRedactSecrets })),
+		youShouldKnow: Type.Optional(
+			Type.Boolean({
+				description:
+					"Run a side agent every six steps that flags one thing you should know. Each check costs one extra model request.",
+				default: SETTINGS_DEFAULTS.youShouldKnow,
+			}),
+		),
 		tasks: Type.Optional(
 			Type.Object({
 				maxRunMinutes: Type.Optional(

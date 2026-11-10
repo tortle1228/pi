@@ -97,10 +97,15 @@ function createSession(options: {
 	return session as unknown as AgentSession;
 }
 
-function createFooterData(providerCount: number): ReadonlyFooterDataProvider {
+function createFooterData(
+	providerCount: number,
+	statuses = new Map<string, string>(),
+	rightKeys = new Set<string>(),
+): ReadonlyFooterDataProvider {
 	const provider = {
 		getGitBranch: () => "main",
-		getExtensionStatuses: () => new Map<string, string>(),
+		getExtensionStatuses: () => statuses,
+		isExtensionStatusRightAligned: (key: string) => rightKeys.has(key),
 		getAvailableProviderCount: () => providerCount,
 		onBranchChange: (callback: () => void) => {
 			void callback;
@@ -142,6 +147,27 @@ describe("FooterComponent width handling", () => {
 			const line = new FooterComponent(session, createFooterData(1)).render(width)[0];
 			expect(visibleWidth(line)).toBeLessThanOrEqual(width);
 		}
+	});
+
+	it("puts right-aligned extension statuses at the right end and shortens the left ones first", () => {
+		const statuses = new Map([
+			["a", "left status"],
+			["exaone", "EXAONE day 70/100"],
+		]);
+		const render = (width: number) =>
+			stripAnsi(
+				new FooterComponent(createSession({ sessionName: "s" }), createFooterData(1, statuses, new Set(["exaone"])))
+					.render(width)
+					.at(-1)!,
+			);
+
+		const wide = render(60);
+		expect(wide.startsWith("left status ")).toBe(true);
+		expect(wide.endsWith("EXAONE day 70/100")).toBe(true);
+		expect(visibleWidth(wide)).toBe(60);
+		const narrow = render(24);
+		expect(narrow.endsWith("EXAONE day 70/100")).toBe(true);
+		expect(visibleWidth(narrow)).toBeLessThanOrEqual(24);
 	});
 
 	it("keeps all lines within width for wide session names", () => {

@@ -377,11 +377,13 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		if (!runner?.hasHandlers("before_provider_request")) return payload;
 		return runner.emitBeforeProviderRequest(payload);
 	};
-	const handleProviderResponse: NonNullable<ModelsSimpleStreamOptions["onResponse"]> = async (response) => {
+	const handleProviderResponse: NonNullable<ModelsSimpleStreamOptions["onResponse"]> = async (response, model) => {
 		const runner = extensionRunnerRef.current;
 		if (!runner?.hasHandlers("after_provider_response")) return;
 		await runner.emit({
 			type: "after_provider_response",
+			provider: model.provider,
+			model: model.id,
 			status: response.status,
 			headers: response.headers,
 		});

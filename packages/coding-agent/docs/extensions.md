@@ -886,6 +886,7 @@ Fired after an HTTP response is received and before its stream body is consumed.
 
 ```typescript
 pi.on("after_provider_response", (event, ctx) => {
+  // event.provider, event.model - the model that answered (after virtual model routing)
   // event.status - HTTP status code
   // event.headers - normalized response headers
   if (event.status === 429) {
@@ -2917,6 +2918,7 @@ See [examples/extensions/timed-confirm.ts](../examples/extensions/timed-confirm.
 // Status in footer (persistent until cleared)
 ctx.ui.setStatus("my-ext", "Processing...");
 ctx.ui.setStatus("my-ext", undefined);  // Clear
+ctx.ui.setStatus("my-ext", "42 left", { align: "right" });  // Right end of the status line (interactive mode only)
 
 // Working loader (shown during streaming)
 ctx.ui.setWorkingMessage("Thinking deeply...");

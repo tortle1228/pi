@@ -1,7 +1,7 @@
 // Exercise the xAI Responses search against an offline SSE server.
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ExtensionContext } from "../src/core/extensions/types.ts";
 import { searchX, searchXai } from "../src/extensions/web-search/openai.ts";
 
@@ -92,6 +92,33 @@ async function fixture() {
 	return { requests, behavior, ctx };
 }
 
+function reasoningModel(ctx: ExtensionContext, off: null | "none") {
+	const model = ctx.model;
+	if (!model) throw new Error("Fixture has no model");
+	model.reasoning = true;
+	model.thinkingLevelMap = {
+		off,
+		minimal: null,
+		low: "low",
+		medium: "medium",
+		high: "high",
+		xhigh: "xhigh",
+		max: null,
+	};
+}
+
+function expectLow(body: Record<string, unknown>, tool: "web_search" | "x_search") {
+	expect(body.reasoning).toEqual({ effort: "low" });
+	expect(body.include ?? []).not.toContain("reasoning.encrypted_content");
+	if (tool === "web_search") {
+		expect(body.tool_choice).toBe("required");
+		expect(body.include).toContain("web_search_call.action.sources");
+		return;
+	}
+	expect(body.tool_choice).toBeUndefined();
+	expect(body.include).toBeUndefined();
+}
+
 describe("xAI search", () => {
 	it("requests xAI web search and returns sources", async () => {
 		const f = await fixture();
@@ -121,6 +148,29 @@ describe("xAI search", () => {
 		expect(req.body.tools).toEqual([{ type: "x_search" }]);
 		expect(req.body.tool_choice).toBeUndefined();
 		expect(req.body.include ?? []).not.toContain("web_search_call.action.sources");
+	});
+
+	it("sends low effort for a grok-4.7 reasoning model and keeps the 60s deadline", async () => {
+		const f = await fixture();
+		reasoningModel(f.ctx, null);
+		const timeout = vi.spyOn(AbortSignal, "timeout");
+		onTestFinished(() => timeout.mockRestore());
+		await searchXai("latest docs", f.ctx);
+		expectLow(f.requests[0].body, "web_search");
+		expect(timeout).toHaveBeenCalledWith(60_000);
+
+		f.behavior.search = false;
+		f.behavior.customTools = ["x_keyword_search"];
+		await searchX("latest posts", f.ctx);
+		expectLow(f.requests[1].body, "x_search");
+	});
+
+	it("replaces grok-4.3 none effort with low", async () => {
+		const f = await fixture();
+		reasoningModel(f.ctx, "none");
+		await searchXai("q", f.ctx);
+		expect(f.requests[0].body.reasoning).toEqual({ effort: "low" });
+		expect(f.requests[0].body.include).not.toContain("reasoning.encrypted_content");
 	});
 
 	it("rejects a missing search call, a foreign tool call, and a non-200 response", async () => {

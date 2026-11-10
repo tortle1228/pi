@@ -6,7 +6,7 @@ Personal fork of [earendil-works/pi](https://github.com/earendil-works/pi). Upst
 
 - URL: `https://github.com/earendil-works/pi.git` (fetched by SHA, not configured as a remote)
 - Fork point: `469d8651b59069d7bd907c7da84597865e114da6`
-- Last reviewed upstream commit: `5ea81d2cd9bb997774b49e379aa5bc496fdfeb6c`
+- Last reviewed upstream commit: `dd30101cfc5b0609411dd80b6f93adbc14db14cf` (v1.5.1)
 - Ported commits: `git log --grep '^Upstream:' --format='%h %s%n  %(trailers:key=Upstream,valueonly)'`
 
 ## Fork Features
@@ -20,15 +20,36 @@ A ported change that touches one of these needs the feature's tests too (see the
 | OpenAI/Codex fast and ultrafast modes, 922K input limits | `packages/ai/test/supports-xhigh.test.ts` |
 | `anthropic-api` / `anthropic` provider split, subscription plan limits | `packages/ai/test`, `packages/coding-agent/test` (grep `anthropic-api`) |
 | Antigravity provider | `packages/ai/test` (grep `antigravity`) |
+| EXAONE provider (`exaone`, `EXAONE_API_KEY`) | `packages/ai/test/stream.test.ts` (grep `exaone`) |
+| EXAONE rate limits in the footer (`exaone-limits`), `provider`/`model` on `after_provider_response` | `packages/coding-agent/test/exaone-limits-extension.test.ts` |
 | Web search/fetch backends: Anthropic, xAI, Parallel, Tavily, Exa, Firecrawl, Antigravity | `packages/coding-agent/test` (grep `web-search`) |
 | Git worktrees: `--worktree`, `/worktree`, `enter_worktree`, cleanup on quit | `packages/coding-agent/test/worktree.test.ts`, `packages/coding-agent/test/worktree-cli.test.ts`, `packages/coding-agent/test/suite/agent-session-worktree.test.ts`, `packages/coding-agent/test/args.test.ts` |
 | Codex image generation: `openai-codex-images` API, `generate_image` tool, `imageModel` setting | `packages/ai/test/openai-codex-images.test.ts`, `packages/coding-agent/test/image-extension.test.ts` |
 | Background tasks, shell secret redaction, Claude memory extension | `packages/coding-agent/test` (grep `tasks`, `redact`, `memory`) |
+| You should know side agent (`youShouldKnow`, `/you-should-know`) | `packages/coding-agent/test/you-should-know.test.ts`, `packages/coding-agent/test/suite/agent-session-you-should-know.test.ts` |
 | `terminal` tool (tmux-style commands, tmux and herdr-core backends, `terminalTool.backends`) | `packages/coding-agent/test/terminal-tool.test.ts`, `packages/coding-agent/test/terminal-commands.test.ts` |
 
 Removed from this fork; never port changes back into them: CHANGELOGs and `/changelog`, upstream contribution files, `durable`, `storage`, `env`, P2, P3, Chord and other apps. Exception: P2's agent `terminal` tool (`apps/p2/plugins/terminals/{commands,tool}.ts`) is ported into `packages/coding-agent/src/extensions/terminal/`; upstream changes to those two files may be ported there.
 
 ## Sync Log
+
+### 2026-11: `5ea81d2cd..dd30101cf` (v1.5.1, 56 commits plus 6 deferred, 18 ported)
+
+Package versions follow the upstream release the fork is based on (1.5.1), so the startup version check does not offer upstream 1.5.1; this ledger records how the fork differs.
+
+Ported unchanged (CHANGELOG hunks dropped): `af79b0c3d`, `55a5c6914`, `36142c1c7`, `8a19e8c4a`, `5c808e17b`, `566344046` (previously deferred); `33cd7e507`, `a77207d9c`, `45344bd3a`, `ea1cfcc4c`, `6382d8706`, `c9dd2c530`, `244e5f5db`, `463b8f893`, `a07f25129`.
+
+Adapted:
+
+- `7bcc15c92` (cacheWarming default `idle`): conflict with the fork's `webSearch` defaults resolved by hand.
+- `0d1793c2b` (Claude Fable 5.2): added in `defineAnthropicProvider`, so `anthropic` and `anthropic-api` both get it.
+- `dd30101cf` (Release v1.5.1): package versions, internal dependency versions and lockfiles only; CHANGELOG, removed packages and the Nix model catalog pin dropped.
+
+Skipped:
+
+- 39 not applicable: P2, P3, Chord, Durable and their docs.
+- 4 docs: changelog and doc-only changes (`e370b44b5`, `77959d667`, `6a1703946`, `9abcd30f6`).
+- 1 skipped: `683a7a868` (partner providers first in `/login`; partner promotion, conflicts with the fork's provider split).
 
 ### 2026-11: `469d8651b..5ea81d2cd` (123 commits, 13 ported)
 
@@ -43,13 +64,4 @@ Skipped:
 - 1 not applicable: `136a7b2d7` (licenses directory rename).
 - 1 skipped: `9b9cb30ae` (`pi auth login/logout`; conflicts with the fork's provider auth split).
 
-Deferred, review in the next sync:
-
-| Commit | Subject | Why deferred |
-|---|---|---|
-| `566344046` | fix(ai): retry streams cut short after the reply had begun | Behavior change in retries; not reviewed against fork providers |
-| `36142c1c7` | fix(ai,coding-agent): remove "(legacy)" marker from OpenAI Codex provider name | Touches provider naming the fork changed |
-| `55a5c6914` | fix(schema): num no longer takes nan and infinity | `packages/schema` is kept; not reviewed |
-| `af79b0c3d` | feat(schema): TypeBox parity for extra types | Feature; not reviewed |
-| `8a19e8c4a` | fix(scripts): biome-check skips files Biome does not support | Tooling; not reviewed |
-| `5c808e17b` | subagent example: ignore the Windows Bun virtual entry path | Windows-only example fix |
+Deferred: 6 commits, all resolved in the v1.5.1 sync below.

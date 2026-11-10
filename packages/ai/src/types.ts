@@ -103,6 +103,7 @@ export type KnownProvider =
 	| "typesafe"
 	| "nvidia"
 	| "deepseek"
+	| "exaone"
 	| "github-copilot"
 	| "xai"
 	| "groq"

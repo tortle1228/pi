@@ -11,6 +11,7 @@ import cerebras from "./cerebras.ts";
 import cloudflareAiGateway from "./cloudflare-ai-gateway.ts";
 import cloudflareWorkersAi from "./cloudflare-workers-ai.ts";
 import deepseek from "./deepseek.ts";
+import exaone from "./exaone.ts";
 import fireworks from "./fireworks.ts";
 import githubCopilot from "./github-copilot.ts";
 import google from "./google.ts";
@@ -58,6 +59,7 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
 	cloudflareAiGateway,
 	cloudflareWorkersAi,
 	deepseek,
+	exaone,
 	fireworks,
 	githubCopilot,
 	googleVertex,
