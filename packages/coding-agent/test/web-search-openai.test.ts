@@ -129,6 +129,7 @@ describe("OpenAI search", () => {
 			expect(req.body.tool_choice).toBe("required");
 			expect(JSON.stringify(req.body.input)).toContain("latest docs");
 			expect(req.body.include).toContain("web_search_call.action.sources");
+			expect(req.body.reasoning).toBeUndefined();
 		});
 		it(`reads ${provider} streamed items when the terminal event omits output`, async () => {
 			const f = await fixture(provider);

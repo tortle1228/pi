@@ -78,12 +78,19 @@ async function searchResponses(
 		cacheRetention: "none" as const,
 		onPayload(payload: unknown) {
 			const body = payload as Record<string, unknown>;
-			const include = Array.isArray(body.include) ? body.include : [];
-			const { tool_choice: _toolChoice, ...rest } = body;
+			const lowReasoning = model.provider === "xai" && model.reasoning;
+			const include = (Array.isArray(body.include) ? body.include : []).filter(
+				(item) => !(lowReasoning && item === "reasoning.encrypted_content"),
+			);
+			const { tool_choice: _toolChoice, reasoning: previousReasoning, include: _include, ...rest } = body;
 			const tools = [{ type: search.tool }];
+			// Omitting effort makes grok-4.5+ default to high. "none" is not accepted there.
+			const base = lowReasoning
+				? { ...rest, reasoning: { effort: "low" } }
+				: { ...rest, ...(previousReasoning === undefined ? {} : { reasoning: previousReasoning }) };
 			// required makes xAI wait for a client tool result after its own X search.
-			if (search.tool !== "web_search") return { ...rest, tools };
-			return { ...rest, tools, tool_choice: "required", include: [...include, "web_search_call.action.sources"] };
+			if (search.tool !== "web_search") return include.length > 0 ? { ...base, tools, include } : { ...base, tools };
+			return { ...base, tools, tool_choice: "required", include: [...include, "web_search_call.action.sources"] };
 		},
 		onProviderStreamEvent(value: unknown) {
 			if (!value || typeof value !== "object") return;
