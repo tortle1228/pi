@@ -6,7 +6,7 @@ Personal fork of [earendil-works/pi](https://github.com/earendil-works/pi). Upst
 
 - URL: `https://github.com/earendil-works/pi.git` (fetched by SHA, not configured as a remote)
 - Fork point: `469d8651b59069d7bd907c7da84597865e114da6`
-- Last reviewed upstream commit: `5ea81d2cd9bb997774b49e379aa5bc496fdfeb6c`
+- Last reviewed upstream commit: `dd30101cfc5b0609411dd80b6f93adbc14db14cf` (v1.5.1)
 - Ported commits: `git log --grep '^Upstream:' --format='%h %s%n  %(trailers:key=Upstream,valueonly)'`
 
 ## Fork Features
@@ -33,6 +33,24 @@ Removed from this fork; never port changes back into them: CHANGELOGs and `/chan
 
 ## Sync Log
 
+### 2026-11: `5ea81d2cd..dd30101cf` (v1.5.1, 56 commits plus 6 deferred, 17 ported)
+
+Package versions stay at 1.5.0: the fork is used locally only, and this ledger records the upstream base.
+
+Ported unchanged (CHANGELOG hunks dropped): `af79b0c3d`, `55a5c6914`, `36142c1c7`, `8a19e8c4a`, `5c808e17b`, `566344046` (previously deferred); `33cd7e507`, `a77207d9c`, `45344bd3a`, `ea1cfcc4c`, `6382d8706`, `c9dd2c530`, `244e5f5db`, `463b8f893`, `a07f25129`.
+
+Adapted:
+
+- `7bcc15c92` (cacheWarming default `idle`): conflict with the fork's `webSearch` defaults resolved by hand.
+- `0d1793c2b` (Claude Fable 5.2): added in `defineAnthropicProvider`, so `anthropic` and `anthropic-api` both get it.
+
+Skipped:
+
+- 39 not applicable: P2, P3, Chord, Durable and their docs.
+- 4 docs: changelog and doc-only changes (`e370b44b5`, `77959d667`, `6a1703946`, `9abcd30f6`).
+- 1 release: `dd30101cf` (version bump; versions stay as they are).
+- 1 skipped: `683a7a868` (partner providers first in `/login`; partner promotion, conflicts with the fork's provider split).
+
 ### 2026-11: `469d8651b..5ea81d2cd` (123 commits, 13 ported)
 
 Ported unchanged (CHANGELOG and `packages/durable` hunks dropped): `63ea042c`, `1f7c685b`, `6bf2ab9b`, `96667f34`, `5732bac0`, `7860ff52`, `6d3e342b`, `7f47a2ed`, `80d4d3c8`, `acd059b7`, `d448c51e`, `4622edb7`, `7a6bd5a9`.
@@ -46,13 +64,4 @@ Skipped:
 - 1 not applicable: `136a7b2d7` (licenses directory rename).
 - 1 skipped: `9b9cb30ae` (`pi auth login/logout`; conflicts with the fork's provider auth split).
 
-Deferred, review in the next sync:
-
-| Commit | Subject | Why deferred |
-|---|---|---|
-| `566344046` | fix(ai): retry streams cut short after the reply had begun | Behavior change in retries; not reviewed against fork providers |
-| `36142c1c7` | fix(ai,coding-agent): remove "(legacy)" marker from OpenAI Codex provider name | Touches provider naming the fork changed |
-| `55a5c6914` | fix(schema): num no longer takes nan and infinity | `packages/schema` is kept; not reviewed |
-| `af79b0c3d` | feat(schema): TypeBox parity for extra types | Feature; not reviewed |
-| `8a19e8c4a` | fix(scripts): biome-check skips files Biome does not support | Tooling; not reviewed |
-| `5c808e17b` | subagent example: ignore the Windows Bun virtual entry path | Windows-only example fix |
+Deferred: 6 commits, all resolved in the v1.5.1 sync below.
