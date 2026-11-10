@@ -68,7 +68,7 @@ export const SETTINGS_DEFAULTS = {
 	webSearch: {
 		order: ["native", "parallel", "tavily", "exa", "firecrawl"],
 	},
-	cacheWarming: "streaming",
+	cacheWarming: "idle",
 	tuiMode: "fullscreen",
 	fullscreenExitOutput: "transcript",
 	fullscreenScrollbar: "auto",
