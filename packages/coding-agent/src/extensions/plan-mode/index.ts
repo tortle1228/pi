@@ -20,7 +20,7 @@ const INSPECTION_TOOLS = new Set([
 	"x_search",
 	"tool_search",
 ]);
-const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "todo", "tasks", "terminal"]);
+const NEVER_READ_ONLY = new Set(["edit", "write", "powershell", "codemode", "todo", "task", "terminal"]);
 const ALLOW = "Allow";
 
 const TOOLS_ENTRY = "plan-mode-tools";

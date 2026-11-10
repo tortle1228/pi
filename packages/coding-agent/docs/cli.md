@@ -128,7 +128,7 @@ See [Settings](settings.md#tools) for configuring the default tool selection.
 - `-nt`, `--no-tools`<br>
   Starts with all built-in, extension, custom, and MCP tools disabled.
 
-Default enabled tools are `read`, `bash`, `edit`, `write`, and the built-in extension tool `tasks`, unless tool selection changes them. `--tools` with plain names replaces the whole selection, so name every tool you want. Like `defaultTools`, it also accepts a list of only `+name` and `-name` entries, which adds tools to or removes them from the default selection: `pi --tools +codemode,-write` keeps the other default tools, enables `codemode`, and disables `write`. These entries take exact tool names, not `*` patterns; use `--exclude-tools` to disable tools by pattern. Plain names and `+name`/`-name` entries cannot be mixed. `/reload` enables tools newly added to `defaultTools`, but a tool removed with `-name` stays removed.
+Default enabled tools are `read`, `bash`, `edit`, `write`, and the built-in extension tool `task`, unless tool selection changes them. `--tools` with plain names replaces the whole selection, so name every tool you want. Like `defaultTools`, it also accepts a list of only `+name` and `-name` entries, which adds tools to or removes them from the default selection: `pi --tools +codemode,-write` keeps the other default tools, enables `codemode`, and disables `write`. These entries take exact tool names, not `*` patterns; use `--exclude-tools` to disable tools by pattern. Plain names and `+name`/`-name` entries cannot be mixed. `/reload` enables tools newly added to `defaultTools`, but a tool removed with `-name` stays removed.
 
 <a id="mcp-tools"></a>
 
@@ -151,7 +151,7 @@ The MCP resource tools (`list_mcp_resources`, `list_mcp_resource_templates`, `re
 | `find` | Find paths using glob patterns |
 | `ls` | List directory contents |
 
-Built-in extensions add `tasks` (on by default), `terminal` (on when tmux or herdr-core is available; see [Terminals](#terminals)), `web_search` (on when the selected provider supports it, or after `/login parallel`, `/login tavily`, `/login exa`, or `/login firecrawl`; see [Web Search](web-search.md)), `x_search` (on for xAI), `web_fetch` (on when Parallel, Tavily, Exa, or Firecrawl is logged in), `web_research` (on after `/login parallel`), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
+Built-in extensions add `task` (on by default), `terminal` (on when tmux or herdr-core is available; see [Terminals](#terminals)), `web_search` (on when the selected provider supports it, or after `/login parallel`, `/login tavily`, `/login exa`, or `/login firecrawl`; see [Web Search](web-search.md)), `x_search` (on for xAI), `web_fetch` (on when Parallel, Tavily, Exa, or Firecrawl is logged in), `web_research` (on after `/login parallel`), and two more tools, `codemode` and `tool_search`. Those two are off by default; the MCP extension turns them on when an MCP server needs them (see [MCP](mcp.md#control-tool-exposure)). To enable them yourself, name them in `--tools` or `defaultTools`.
 
 | Built-in extension | Purpose |
 |---|---|
@@ -187,9 +187,9 @@ Scripts run in a QuickJS sandbox and reach the other tools through `tools.<name>
 
 ### Background tasks
 
-The `tasks` tool starts background shell commands with `start` and returns a task id. Use `output` to read new output (optionally `wait` up to 600 seconds for completion), `list` to see all tasks, and `cancel` to stop a task and its child processes. Full output is stored in a temporary log. `/tasks` lists this session’s tasks; use arrow keys to select and `x` to stop one. In RPC mode it sends a text notification.
+The `task` tool starts background shell commands with `start` and returns a task id. Use `output` to read new output (optionally `wait` up to 600 seconds for completion), `list` to see all tasks, and `cancel` to stop a task and its child processes. Full output is stored in a temporary log. `/tasks` lists this session’s tasks; use arrow keys to select and `x` to stop one. In RPC mode it sends a text notification.
 
-`start` requires the `bash` tool to be active, so disabling `bash` also stops new tasks. Extensions that inspect shell commands in `tool_call` by checking for `bash` do not see task commands; they must also check `tasks`.
+`start` requires the `bash` tool to be active, so disabling `bash` also stops new tasks. Extensions that inspect shell commands in `tool_call` by checking for `bash` do not see task commands; they must also check `task`.
 
 Tasks stop and their logs are deleted when the session ends or is replaced by `/reload`, `/new`, `/resume`, or `/fork`. Tasks also stop at the configured time and log-size limits. When a task ends on its own, Pi records a `task-ended` message without starting a new turn. A task cancelled explicitly or awaited by `output` does not send a separate completion message. Tasks are not restored after restart.
 

@@ -1,5 +1,5 @@
 /**
- * Ends the `tasks` tool's `output` waits when the user types during a run, so the model reads the message instead of
+ * Ends the `task` tool's `output` waits when the user types during a run, so the model reads the message instead of
  * holding the turn until the task ends.
  */
 

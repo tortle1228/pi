@@ -1,5 +1,5 @@
 /**
- * The `tasks` tool as an extension. The CLI loads it as a built-in extension; SDK users add `createTasksExtension()` to
+ * The `task` tool as an extension. The CLI loads it as a built-in extension; SDK users add `createTasksExtension()` to
  * their extension factories.
  *
  * Tasks run with the `shellPath` and `shellCommandPrefix` settings and stop when the session ends. A

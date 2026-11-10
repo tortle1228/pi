@@ -1,6 +1,6 @@
 /**
  * The `/tasks` overlay: this session's background tasks, one row each, with the selected task's details below. The
- * `tasks` tool keeps the tasks; this file only draws them and stops the one the user picks.
+ * `task` tool keeps the tasks; this file only draws them and stops the one the user picks.
  */
 
 import {

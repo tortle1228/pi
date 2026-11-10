@@ -1,5 +1,5 @@
 /**
- * Background shell tasks for the `tasks` tool: starts commands without waiting for them, keeps each task's output until
+ * Background shell tasks for the `task` tool: starts commands without waiting for them, keeps each task's output until
  * the model reads it, and stops every task and deletes its log when the session ends.
  */
 

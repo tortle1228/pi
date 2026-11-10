@@ -1,4 +1,4 @@
-/** The `tasks` tool: starts shell commands in the background and reads, lists, or cancels them later. */
+/** The `task` tool: starts shell commands in the background and reads, lists, or cancels them later. */
 
 import { type Static, Type } from "typebox";
 import type { ToolDefinition } from "../../core/extensions/types.ts";
@@ -6,14 +6,14 @@ import { resolveSpawnContext } from "../../core/tools/bash.ts";
 import type { TaskOutput, TaskRegistry, TaskSnapshot, TaskStatus } from "./task-registry.ts";
 import type { WaitStop } from "./wait-stop.ts";
 
-export const TASK_TOOL_NAME = "tasks";
+export const TASK_TOOL_NAME = "task";
 
 /** `customType` of the message that reports a task which ended on its own. */
 export const TASK_ENDED_MESSAGE_TYPE = "task-ended";
 
 /** The text of that message. */
 export function formatTaskEnded(task: TaskSnapshot): string {
-	return `Background ${describeTask(task)}: ${task.command}\nRead its output with the tasks tool, action "output" and id "${task.id}".`;
+	return `Background ${describeTask(task)}: ${task.command}\nRead its output with the task tool, action "output" and id "${task.id}".`;
 }
 
 /** First line of an `output` wait the user's message ended while the task still ran. */
@@ -44,7 +44,7 @@ export type TaskToolDetails = { tasks: TaskSnapshot[] };
 export const taskToolSystemPromptContribution = {
 	snippet: "Run shell commands in the background and read their output later",
 	guidelines: [
-		"Use tasks for commands that keep running, such as dev servers and watchers, or that take longer than you want to wait for; use bash for everything else.",
+		"Use task for commands that keep running, such as dev servers and watchers, or that take longer than you want to wait for; use bash for everything else.",
 		'Read a task with action "output"; set wait to block until it ends instead of polling in a loop.',
 	],
 } as const;
@@ -63,7 +63,7 @@ export function createTaskToolDefinition(options: TaskToolOptions): ToolDefiniti
 	const { registry, waitStop } = options;
 	return {
 		name: TASK_TOOL_NAME,
-		label: "tasks",
+		label: "task",
 		description: `Run shell commands in the background. "start" returns a task id at once; "output" returns what the task printed since the previous read, within the usual output limits, and the full output is kept in a log file; "cancel" stops the task and its child processes; "list" shows every task. Tasks stop when the session ends, or earlier at the tasks.maxRunMinutes and tasks.maxLogBytes caps.`,
 		promptSnippet: taskToolSystemPromptContribution.snippet,
 		promptGuidelines: [...taskToolSystemPromptContribution.guidelines],

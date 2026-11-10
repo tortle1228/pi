@@ -37,7 +37,7 @@ describe("WaitStop", () => {
 	});
 });
 
-describe("tasks tool output", () => {
+describe("task tool output", () => {
 	it("stops waiting when the user types and leaves the task running", async () => {
 		const signals: Array<AbortSignal | undefined> = [];
 		const operations: BashOperations = {
@@ -54,6 +54,8 @@ describe("tasks tool output", () => {
 			isBashActive: () => true,
 			waitStop,
 		});
+		expect(tool.name).toBe("task");
+		expect(tool.label).toBe("task");
 		registry.start("server", "/repo");
 
 		const output = tool.execute(

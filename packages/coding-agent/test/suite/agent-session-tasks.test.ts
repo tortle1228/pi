@@ -14,18 +14,18 @@ describe("background tasks in an agent session", () => {
 	it("is active by default and executes start and output calls", async () => {
 		const harness = await createHarness({ extensionFactories: [createTasksExtension()] });
 		harnesses.push(harness);
-		expect(harness.session.getActiveToolNames()).toContain("tasks");
+		expect(harness.session.getActiveToolNames()).toContain("task");
 		harness.setResponses([
-			fauxAssistantMessage([fauxToolCall("tasks", { action: "start", command: "printf 'hello\\n'" })], {
+			fauxAssistantMessage([fauxToolCall("task", { action: "start", command: "printf 'hello\\n'" })], {
 				stopReason: "toolUse",
 			}),
-			fauxAssistantMessage([fauxToolCall("tasks", { action: "output", id: "task-1", wait: 30 })], {
+			fauxAssistantMessage([fauxToolCall("task", { action: "output", id: "task-1", wait: 30 })], {
 				stopReason: "toolUse",
 			}),
 			fauxAssistantMessage("done"),
 		]);
 		await harness.session.prompt("go");
-		expect(JSON.stringify(getToolResult(harness, "tasks"))).toContain("hello");
+		expect(JSON.stringify(getToolResult(harness, "task"))).toContain("hello");
 	});
 
 	it("refuses to start a command when bash is excluded", async () => {
@@ -41,32 +41,32 @@ describe("background tasks in an agent session", () => {
 			excludedToolNames: ["bash"],
 		});
 		harnesses.push(harness);
-		expect(harness.session.getActiveToolNames()).toContain("tasks");
+		expect(harness.session.getActiveToolNames()).toContain("task");
 		harness.setResponses([
-			fauxAssistantMessage([fauxToolCall("tasks", { action: "start", command: "rm -rf build" })], {
+			fauxAssistantMessage([fauxToolCall("task", { action: "start", command: "rm -rf build" })], {
 				stopReason: "toolUse",
 			}),
 			fauxAssistantMessage("done"),
 		]);
 		await harness.session.prompt("go");
 		expect(started).toBe(false);
-		expect(JSON.stringify(getToolResult(harness, "tasks"))).toContain("needs the bash tool");
+		expect(JSON.stringify(getToolResult(harness, "task"))).toContain("needs the bash tool");
 	});
 
 	it("gives a task the session environment the bash tool gets", async () => {
 		const harness = await createHarness({ extensionFactories: [createTasksExtension()] });
 		harnesses.push(harness);
 		harness.setResponses([
-			fauxAssistantMessage([fauxToolCall("tasks", { action: "start", command: 'printf "%s" "$PI_SESSION_ID"' })], {
+			fauxAssistantMessage([fauxToolCall("task", { action: "start", command: 'printf "%s" "$PI_SESSION_ID"' })], {
 				stopReason: "toolUse",
 			}),
-			fauxAssistantMessage([fauxToolCall("tasks", { action: "output", id: "task-1", wait: 30 })], {
+			fauxAssistantMessage([fauxToolCall("task", { action: "output", id: "task-1", wait: 30 })], {
 				stopReason: "toolUse",
 			}),
 			fauxAssistantMessage("done"),
 		]);
 		await harness.session.prompt("go");
-		expect(JSON.stringify(getToolResult(harness, "tasks"))).toContain(harness.sessionManager.getSessionId());
+		expect(JSON.stringify(getToolResult(harness, "task"))).toContain(harness.sessionManager.getSessionId());
 	});
 
 	it("stops running work at session shutdown", async () => {
@@ -81,7 +81,7 @@ describe("background tasks in an agent session", () => {
 		const harness = await createHarness({ extensionFactories: [createTasksExtension({ operations })] });
 		harnesses.push(harness);
 		harness.setResponses([
-			fauxAssistantMessage([fauxToolCall("tasks", { action: "start", command: "server" })], {
+			fauxAssistantMessage([fauxToolCall("task", { action: "start", command: "server" })], {
 				stopReason: "toolUse",
 			}),
 			fauxAssistantMessage("started"),
